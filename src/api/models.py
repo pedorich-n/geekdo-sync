@@ -25,7 +25,7 @@ class APIItem(BaseXmlModel, tag="item"):
 class APIPlayer(BaseXmlModel, tag="player"):
     username: Optional[str] = attr(default=None)
     userid: Optional[int] = attr(default=None)
-    name: Optional[str] = attr(default=None)
+    name: str = attr()
     startposition: Optional[str] = attr(default=None)
     color: Optional[str] = attr(default=None)
     score: Optional[int] = attr(default=None)
@@ -33,10 +33,16 @@ class APIPlayer(BaseXmlModel, tag="player"):
     rating: Optional[int] = attr(default=None)
     win: Optional[bool] = attr(default=None)
 
-    @field_validator("username", "userid", "name", "startposition", "color", "score", "rating", mode="before")
+    @field_validator("userid", mode="before")
+    @classmethod
+    def convert_empty_userid(cls, v: str | int) -> Optional[str | int]:
+        return None if (v == "" or v == "0" or v == 0) else v
+
+    @field_validator("username", "startposition", "color", "score", "rating", mode="before")
     @classmethod
     def convert_empty_numeric_strings(cls, v: str | int) -> Optional[str | int]:
         return None if v == "" else v
+    
 
 
 class APIPlayers(BaseXmlModel, tag="players"):

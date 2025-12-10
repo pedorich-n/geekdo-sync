@@ -7,6 +7,7 @@ dependencies = [
     "pydantic>=2.12.5",
     "requests>=2.32.5",
     "pydantic-xml>=1.2.0",
+    "pygrister>=0.9.1",
 ]
 
 [build-system]
