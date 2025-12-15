@@ -3,7 +3,7 @@
 from .schemas import APIItem, APIPlay, APIPlayer
 
 
-def extract_unique_items(plays: list[APIPlay]) -> dict[int, APIItem]:
+def extract_unique_items(plays: list[APIPlay]) -> dict[str, APIItem]:
     """
     Extract all unique items from plays.
 
@@ -13,7 +13,7 @@ def extract_unique_items(plays: list[APIPlay]) -> dict[int, APIItem]:
     Returns:
         Dictionary mapping item objectid to APIItem
     """
-    items: dict[int, APIItem] = {}
+    items: dict[str, APIItem] = {}
     for play in plays:
         item_id = play.item.objectid
         if item_id not in items:

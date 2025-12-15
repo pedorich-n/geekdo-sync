@@ -1,7 +1,7 @@
 from datetime import date as Date
 from typing import Optional
 
-from pydantic import ConfigDict, field_validator
+from pydantic import ConfigDict, computed_field, field_validator
 from pydantic_xml import BaseXmlModel, attr, element
 
 
@@ -18,13 +18,18 @@ class APIItem(BaseXmlModel, tag="item"):
 
     name: str = attr()
     objecttype: str = attr() 
-    objectid: int = attr()
+    objectid: str = attr()
     subtypes: APISubtypes = element()
+
+    @property
+    @computed_field
+    def subtype(self) -> str:
+        return self.subtypes.subtype[0].value if self.subtypes.subtype else ""
 
 
 class APIPlayer(BaseXmlModel, tag="player"):
     username: Optional[str] = attr(default=None)
-    userid: Optional[int] = attr(default=None)
+    userid: Optional[str] = attr(default=None)
     name: str = attr()
     startposition: Optional[str] = attr(default=None)
     color: Optional[str] = attr(default=None)
@@ -54,7 +59,7 @@ class APIPlayers(BaseXmlModel, tag="players"):
 class APIPlay(BaseXmlModel, tag="play"):
     """Play element in API response."""
 
-    id: int = attr()
+    id: str = attr()
     date: Date = attr()
     quantity: int = attr()
     length: int = attr()

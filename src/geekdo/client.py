@@ -1,5 +1,7 @@
 import logging
+from datetime import date
 from time import sleep
+from typing import Optional
 
 import requests
 
@@ -30,13 +32,15 @@ class BGGClient:
         self.session = requests.Session()
         self.session.headers.update({"Authorization": f"Bearer {api_key}"})
 
-    def get_plays(self, username: str, page: int = 1) -> APIPlaysResponse:
+    def get_plays(self, username: str, page: int = 1, mindate: Optional[date] = None, maxdate: Optional[date] = None) -> APIPlaysResponse:
         """
         Fetch a page of plays for a user.
 
         Args:
             username: BGG username to fetch plays for
             page: Page number to fetch (default: 1, 100 records per page)
+            mindate: Filter plays on or after this date
+            maxdate: Filter plays on or before this date
 
         Returns:
             APIPlaysResponse containing plays for the requested page
@@ -49,6 +53,11 @@ class BGGClient:
             "username": username,
             "page": str(page),
         }
+
+        if mindate:
+            params["mindate"] = mindate.isoformat()
+        if maxdate:
+            params["maxdate"] = maxdate.isoformat()
 
         logger.debug(f"Fetching plays for {username}, page {page}")
 
@@ -67,12 +76,14 @@ class BGGClient:
             logger.error(f"Failed to parse BGG API response: {e}")
             raise
 
-    def get_all_plays(self, username: str) -> list[APIPlaysResponse]:
+    def get_all_plays(self, username: str, mindate: date | None = None, maxdate: date | None = None) -> list[APIPlaysResponse]:
         """
         Fetch all plays for a user across all pages.
 
         Args:
             username: BGG username to fetch plays for
+            mindate: Filter plays on or after this date
+            maxdate: Filter plays on or before this date
 
         Returns:
             List of APIPlaysResponse objects, one per page
@@ -85,7 +96,7 @@ class BGGClient:
 
         while True:
             logger.info(f"Fetching page {page}")
-            response = self.get_plays(username=username, page=page)
+            response = self.get_plays(username=username, page=page, mindate=mindate, maxdate=maxdate)
             all_responses.append(response)
 
             # Check if we've reached the last page
