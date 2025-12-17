@@ -1,6 +1,5 @@
-"""Grist synchronization logic for syncing GeekDo play data."""
-
 import logging
+import time
 from datetime import date, timedelta
 
 from pygrister.api import GristApi  # type: ignore[import-untyped]
@@ -20,6 +19,7 @@ from src.grist.models import (
 )
 
 logger = logging.getLogger(__name__)
+
 
 
 class GristSync:
@@ -131,6 +131,10 @@ class GristSync:
         logger.info(f"Starting iterate-until-overlap fetch (mindate: {mindate})")
 
         while not found_overlap:
+            # Add delay before fetching (except for first page)
+            if page > 1:
+                time.sleep(self.bgg_client.delay)
+            
             logger.debug(f"Fetching page {page}")
             response = self.bgg_client.get_plays(
                 username=self.bgg_username,

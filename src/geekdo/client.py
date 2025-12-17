@@ -1,6 +1,5 @@
 import logging
 from datetime import date
-from time import sleep
 from typing import Optional
 
 import requests
@@ -75,39 +74,6 @@ class BGGClient:
         except ValueError as e:
             logger.error(f"Failed to parse BGG API response: {e}")
             raise
-
-    def get_all_plays(self, username: str, mindate: date | None = None, maxdate: date | None = None) -> list[APIPlaysResponse]:
-        """
-        Fetch all plays for a user across all pages.
-
-        Args:
-            username: BGG username to fetch plays for
-            mindate: Filter plays on or after this date
-            maxdate: Filter plays on or before this date
-
-        Returns:
-            List of APIPlaysResponse objects, one per page
-
-        Raises:
-            ValueError: If any API request or parsing fails
-        """
-        all_responses: list[APIPlaysResponse] = []
-        page = 1
-
-        while True:
-            logger.info(f"Fetching page {page}")
-            response = self.get_plays(username=username, page=page, mindate=mindate, maxdate=maxdate)
-            all_responses.append(response)
-
-            # Check if we've reached the last page
-            if len(response.play) < 100:
-                logger.info(f"Finished fetching all pages ({response.total} total plays)")
-                break
-
-            sleep(self.delay)
-            page += 1
-
-        return all_responses
 
     def close(self) -> None:
         """Close the client session."""
