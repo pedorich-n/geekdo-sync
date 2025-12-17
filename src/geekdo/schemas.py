@@ -21,8 +21,8 @@ class APIItem(BaseXmlModel, tag="item"):
     objectid: str = attr()
     subtypes: APISubtypes = element()
 
-    @property
     @computed_field
+    @property
     def subtype(self) -> str:
         return self.subtypes.subtype[0].value if self.subtypes.subtype else ""
 
