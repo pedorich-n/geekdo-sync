@@ -21,7 +21,6 @@ from src.grist.models import (
 logger = logging.getLogger(__name__)
 
 
-
 class GristSync:
     """Orchestrates incremental synchronization of GeekDo play data to Grist."""
 
@@ -45,11 +44,7 @@ class GristSync:
         self.player_plays_table_id = "PlayerPlays"
         self.overlap_detection_limit = 100
 
-        self.grist_client.in_converter = {
-            self.plays_table_id: {
-                "Date": lambda d: d.isoformat()
-            }
-        }
+        self.grist_client.in_converter = {self.plays_table_id: {"Date": lambda d: d.isoformat()}}
 
     # Phase 1: Check for new data & fetch only what's needed
 
@@ -134,7 +129,7 @@ class GristSync:
             # Add delay before fetching (except for first page)
             if page > 1:
                 time.sleep(self.bgg_client.delay)
-            
+
             logger.debug(f"Fetching page {page}")
             response = self.bgg_client.get_plays(
                 username=self.bgg_username,
@@ -188,7 +183,7 @@ class GristSync:
             Dictionary mapping item objectid to GristItemInput
         """
         api_items = extract_unique_items(plays)
-        
+
         items_dict = {
             objectid: GristItemInput(
                 ItemID=item.objectid,
@@ -198,7 +193,7 @@ class GristSync:
             )
             for objectid, item in api_items.items()
         }
-        
+
         logger.debug(f"Prepared {len(items_dict)} unique items")
         return items_dict
 
@@ -213,16 +208,11 @@ class GristSync:
             Dictionary mapping player name to GristPlayerInput
         """
         api_players = extract_unique_players(plays)
-        
+
         players_dict = {
-            name: GristPlayerInput(
-                Name=player.name,
-                Username=player.username,
-                UserID=player.userid
-            )
-            for name, player in api_players.items()
+            name: GristPlayerInput(Name=player.name, Username=player.username, UserID=player.userid) for name, player in api_players.items()
         }
-        
+
         logger.debug(f"Prepared {len(players_dict)} unique players")
         return players_dict
 
@@ -238,13 +228,13 @@ class GristSync:
             List of GristPlayInput with resolved item references
         """
         plays_list: list[GristPlayInput] = []
-        
+
         for play in plays:
             item_id = play.item.objectid
             if item_id not in items_mapping:
                 logger.warning(f"Item {item_id} not found in items_mapping for play {play.id}")
                 continue
-            
+
             play_input = GristPlayInput(
                 PlayID=play.id,
                 Date=play.date,
@@ -255,7 +245,7 @@ class GristSync:
                 Location=play.location,
             )
             plays_list.append(play_input)
-        
+
         logger.debug(f"Prepared {len(plays_list)} plays")
         return plays_list
 
@@ -274,21 +264,21 @@ class GristSync:
             List of GristPlayerPlayInput with resolved references
         """
         player_plays_list: list[GristPlayerPlayInput] = []
-        
+
         for play in plays:
             play_id = play.id
             if play_id not in plays_mapping:
                 logger.warning(f"Play {play_id} not found in plays_mapping")
                 continue
-            
+
             if not play.players:
                 continue
-            
+
             for player in play.players.player:
                 if player.name not in players_mapping:
                     logger.warning(f"Player '{player.name}' not found in players_mapping for play {play_id}")
                     continue
-                
+
                 player_play = GristPlayerPlayInput(
                     Play=plays_mapping[play_id],
                     Player=players_mapping[player.name],
@@ -300,7 +290,7 @@ class GristSync:
                     Win=player.win,
                 )
                 player_plays_list.append(player_play)
-        
+
         logger.debug(f"Prepared {len(player_plays_list)} player-play relationships")
         return player_plays_list
 
@@ -619,7 +609,7 @@ class GristSync:
             logger.info("Phase 1: Fetching recent plays from Grist")
             recent_play_ids_dict = self.get_recent_plays_from_grist()
             recent_play_ids_set = set(recent_play_ids_dict.keys())
-            
+
             # Only use mindate optimization for incremental sync with existing plays
             # For initial/full sync, fetch ALL history (mindate=None)
             if not recent_play_ids_set:
@@ -668,7 +658,7 @@ class GristSync:
             logger.info("Phase 5: Preparing and syncing dependent entities")
             plays_list = self.prepare_plays(new_plays, items_mapping)
             plays_mapping = self.sync_plays(plays_list, recent_play_ids_dict)
-            
+
             player_plays_list = self.prepare_player_plays(new_plays, plays_mapping, players_mapping)
             self.sync_player_plays(player_plays_list)
 

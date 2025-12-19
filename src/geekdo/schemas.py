@@ -17,7 +17,7 @@ class APIItem(BaseXmlModel, tag="item"):
     model_config = ConfigDict(populate_by_name=True)
 
     name: str = attr()
-    objecttype: str = attr() 
+    objecttype: str = attr()
     objectid: str = attr()
     subtypes: APISubtypes = element()
 
@@ -47,7 +47,6 @@ class APIPlayer(BaseXmlModel, tag="player"):
     @classmethod
     def convert_empty_numeric_strings(cls, v: str | int) -> Optional[str | int]:
         return None if v == "" else v
-    
 
 
 class APIPlayers(BaseXmlModel, tag="players"):

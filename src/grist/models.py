@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 # Grist Input models (for writing to Grist)
 
+
 class GristUpsertRecord(BaseModel):
     """Base model for Grist upsert records with require/fields structure."""
 
@@ -100,6 +101,7 @@ class GristPlayInput(BaseModel):
                 "Location": self.Location,
             },
         )
+
 
 # Output models (for reading from Grist - includes Grist row IDs)
 

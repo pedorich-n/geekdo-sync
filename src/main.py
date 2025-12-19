@@ -48,7 +48,7 @@ def main() -> int:
             # Initialize sync orchestrator
             sync = GristSync(
                 bgg_client=bgg_client,
-                bgg_username=config.geekdo.username, 
+                bgg_username=config.geekdo.username,
                 grist_client=grist_api,
                 grist_doc_id=config.grist.doc_id,
             )
@@ -75,4 +75,3 @@ def main() -> int:
     except Exception as e:
         logger.error(f"Fatal error during sync: {e}", exc_info=True)
         sys.exit(1)
-
