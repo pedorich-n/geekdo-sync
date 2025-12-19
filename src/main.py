@@ -1,10 +1,10 @@
 import logging
-import os
 import sys
 from datetime import datetime
 
 from pygrister.api import GristApi  # type: ignore[import-untyped]
 
+from src.config import Config
 from src.geekdo.client import BGGClient
 from src.sync import GristSync
 
@@ -25,45 +25,32 @@ logger = logging.getLogger(__name__)
 def main() -> int:
     """Run the sync process."""
 
+    try:
+        config = Config()  # type: ignore[call-arg]
+    except Exception as e:
+        logger.error(f"Error loading configuration: {e}", exc_info=True)
+        sys.exit(1)
+
     logger.info("=" * 60)
     logger.info("Starting GeekDo Sync")
     logger.info("=" * 60)
 
-    # Load configuration from environment
-    geekdo_username = os.getenv("GEEKDO_USERNAME")
-    geekdo_token = os.getenv("GEEKDO_TOKEN")
-    grist_doc_id = os.getenv("GRIST_DOC_ID")
-
-    # Validate required environment variables
-    missing_vars = []
-    if not geekdo_username:
-        missing_vars.append("GEEKDO_USERNAME")
-    if not geekdo_token:
-        missing_vars.append("GEEKDO_TOKEN")
-    if not grist_doc_id:
-        missing_vars.append("GRIST_DOC_ID")
-
-    if missing_vars:
-        logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
-        logger.error("Please set them in your environment")
-        sys.exit(1)
-
     logger.info("Configuration:")
-    logger.info(f"  GeekDo Username: {geekdo_username}")
-    logger.info(f"  Grist Document ID: {grist_doc_id}")
+    logger.info(f"  GeekDo Username: {config.geekdo.username}")
+    logger.info(f"  Grist Document ID: {config.grist.doc_id}")
 
     try:
         # Initialize clients
         logger.info("Initializing clients...")
-        with BGGClient(api_key=geekdo_token) as bgg_client:  # type: ignore[arg-type]
+        with BGGClient(api_key=config.geekdo.token) as bgg_client:  # type: ignore[arg-type]
             grist_api = GristApi()
 
             # Initialize sync orchestrator
             sync = GristSync(
                 bgg_client=bgg_client,
-                bgg_username=geekdo_username,  # type: ignore[arg-type]
+                bgg_username=config.geekdo.username, 
                 grist_client=grist_api,
-                grist_doc_id=grist_doc_id,  # type: ignore[arg-type]
+                grist_doc_id=config.grist.doc_id,
             )
 
             # Run the sync
