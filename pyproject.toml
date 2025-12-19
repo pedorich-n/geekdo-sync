@@ -19,7 +19,7 @@ build-backend = "hatchling.build"
 include = ["src"]
 
 [project.scripts]
-fetch-plays = "src.main:main"
+geekdo-sync = "src.main:main"
 
 [dependency-groups]
 dev = [
