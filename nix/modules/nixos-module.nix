@@ -1,12 +1,13 @@
 { package }:
 {
   config,
-  systemdUtils,
   lib,
+  utils,
   ...
 }:
 let
-  inherit (systemdUtils.unitOptions) unitOption;
+  # Utils from https://github.com/NixOS/nixpkgs/blob/4930931c997bcf/nixos/modules/misc/extra-arguments.nix#L9-L11
+  inherit (utils.systemdUtils.unitOptions) unitOption;
 
   cfg = config.services.geekdo-sync;
 in
@@ -35,7 +36,7 @@ in
         default = { };
       };
 
-      environmentFile = lib.mkOption {
+      environmentFiles = lib.mkOption {
         type = lib.types.listOf lib.types.path;
         description = ''
           List of files to read environment variables from. See
@@ -46,10 +47,7 @@ in
 
       timerConfig = lib.mkOption {
         type = lib.types.nullOr (lib.types.attrsOf unitOption);
-        default = {
-          OnCalendar = "daily";
-          Persistent = true;
-        };
+        default = null;
         description = ''
           When to run the backup. See {manpage}`systemd.timer(5)` for
           details. If null no timer is created and sync will only
@@ -75,13 +73,16 @@ in
 
       services.geekdo-sync = {
         description = "Geekdo Sync";
+
         wantedBy = [ "multi-user.target" ];
+        wants = [ "network-online.target" ];
         after = [ "network-online.target" ];
 
+        environment = cfg.environment;
         serviceConfig = {
           ExecStart = lib.getExe cfg.package;
 
-          EnvironmentFile = cfg.environmentFile;
+          EnvironmentFile = cfg.environmentFiles;
 
           # Hardening
           AmbientCapabilities = [ ];

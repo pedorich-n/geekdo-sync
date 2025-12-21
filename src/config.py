@@ -1,8 +1,9 @@
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class GeekdoConfig(BaseSettings):
-    token: str
+    token: SecretStr
     username: str
 
 

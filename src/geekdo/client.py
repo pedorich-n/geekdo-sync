@@ -3,6 +3,7 @@ from datetime import date
 from typing import Optional
 
 import requests
+from pydantic import SecretStr
 
 from .schemas import APIPlaysResponse
 from .xml_parser import parse_plays_xml
@@ -15,7 +16,7 @@ BGG_API_BASE_URL = "https://boardgamegeek.com/xmlapi2"
 class BGGClient:
     """Client for fetching play data from BoardGameGeek API."""
 
-    def __init__(self, api_key: str, base_url: str = BGG_API_BASE_URL, timeout: int = 30, delay: float = 1.0):
+    def __init__(self, api_key: SecretStr, base_url: str = BGG_API_BASE_URL, timeout: int = 30, delay: float = 1.0):
         """
         Initialize BGG client.
 
@@ -29,7 +30,7 @@ class BGGClient:
         self.timeout = timeout
         self.delay = delay
         self.session = requests.Session()
-        self.session.headers.update({"Authorization": f"Bearer {api_key}"})
+        self.session.headers.update({"Authorization": f"Bearer {api_key.get_secret_value()}"})
 
     def get_plays(self, username: str, page: int = 1, mindate: Optional[date] = None, maxdate: Optional[date] = None) -> APIPlaysResponse:
         """
