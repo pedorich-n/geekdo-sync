@@ -8,4 +8,3 @@ Sync play logs from [BoardGameGeek](https://boardgamegeek.com/) and [RPGGeek](ht
 - Supports both board game and RPG play data
 - Normalized Grist schema with separate tables for plays, items, players, and player-play relationships
 - Preserves detailed player data including scores, positions, colors, and ratings
-
