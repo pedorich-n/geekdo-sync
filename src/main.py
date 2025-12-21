@@ -10,7 +10,7 @@ from src.sync import GristSync
 
 logging.basicConfig(
     level=logging.DEBUG,
-    format="[{asctime}] [{levelname:<5s}] [{name:<20.20}] [{funcName:<20.20}] - {message}",
+    format="[{asctime}] [{levelname:<5s}] - {message}",
     datefmt="%Y-%m-%dT%H:%M:%S%z",
     style="{",
 )

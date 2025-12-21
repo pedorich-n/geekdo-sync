@@ -20,21 +20,12 @@ in
         default = package;
       };
 
-      environment = lib.mkOption {
-        type = lib.types.submodule {
-          freeformType = unitOption;
-          options = {
-            GRIST_DOC_ID = lib.mkOption {
-              type = lib.types.str;
-            };
-          };
-        };
-
-        default = { };
-      };
-
       environmentFile = lib.mkOption {
         type = lib.types.listOf lib.types.path;
+        description = ''
+          List of files to read environment variables from. See
+          {manpage}`systemd.exec(5)` for details.
+        '';
         default = [ ];
       };
 
@@ -46,7 +37,7 @@ in
         };
         description = ''
           When to run the backup. See {manpage}`systemd.timer(5)` for
-          details. If null no timer is created and the backup will only
+          details. If null no timer is created and sync will only
           run when explicitly started.
         '';
         example = {
@@ -75,7 +66,6 @@ in
         serviceConfig = {
           ExecStart = lib.getExe cfg.package;
 
-          Environment = cfg.environment;
           EnvironmentFile = cfg.environmentFile;
 
           # Hardening
