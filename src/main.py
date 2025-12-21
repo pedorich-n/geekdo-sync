@@ -4,22 +4,28 @@ from datetime import datetime
 
 from pygrister.api import GristApi  # type: ignore[import-untyped]
 
-from src.config import Config
+from src.config import Config, LogFormat, LoggingConfig
 from src.geekdo.client import BGGClient
 from src.sync import GristSync
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="[{asctime}] [{levelname:<5s}] - {message}",
-    datefmt="%Y-%m-%dT%H:%M:%S%z",
-    style="{",
-)
 
-logging.getLogger("urllib3").setLevel(logging.WARNING)
-logging.getLogger("requests").setLevel(logging.WARNING)
+def configure_logging(logging_config: LoggingConfig) -> None:
+    format_strings = {
+        LogFormat.FULL: "[{asctime}] [{levelname:<5s}] {message}",
+        LogFormat.SYSTEMD: "[{levelname:<5s}] {message}",
+        LogFormat.SIMPLE: "{message}",
+    }
 
+    logging.basicConfig(
+        level=logging_config.level.value,
+        format=format_strings[logging_config.format],
+        datefmt="%Y-%m-%dT%H:%M:%S%z",
+        style="{",
+    )
 
-logger = logging.getLogger(__name__)
+    # Reduce noise from third-party libraries
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("requests").setLevel(logging.WARNING)
 
 
 def main() -> int:
@@ -28,8 +34,14 @@ def main() -> int:
     try:
         config = Config()  # type: ignore[call-arg]
     except Exception as e:
-        logger.error(f"Error loading configuration: {e}", exc_info=True)
+        # Can't use logger yet as config failed
+        print(f"Error loading configuration: {e}", file=sys.stderr)
         sys.exit(1)
+
+    # Configure logging with settings from config
+    configure_logging(config.logging)
+
+    logger = logging.getLogger(__name__)
 
     logger.info("=" * 60)
     logger.info("Starting GeekDo Sync")
