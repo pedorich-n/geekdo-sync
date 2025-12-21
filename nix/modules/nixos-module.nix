@@ -1,9 +1,9 @@
 { package }:
-{ config
-, systemdUtils
-, lib
-, pkgs
-, ...
+{
+  config,
+  systemdUtils,
+  lib,
+  ...
 }:
 let
   inherit (systemdUtils.unitOptions) unitOption;
@@ -18,6 +18,21 @@ in
       package = lib.mkOption {
         type = lib.types.package;
         default = package;
+      };
+
+      # From https://github.com/NixOS/nixpkgs/blob/e4e07f83de65e/nixos/lib/systemd-unit-options.nix#L348-L364
+      environment = lib.mkOption {
+        type =
+          with lib.types;
+          attrsOf (
+            nullOr (oneOf [
+              str
+              path
+              package
+            ])
+          );
+
+        default = { };
       };
 
       environmentFile = lib.mkOption {
