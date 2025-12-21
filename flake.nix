@@ -2,7 +2,7 @@
   description = "Nix flake project to sync GeekDo data to Grist";
 
   inputs = {
-    # self.submodules = true;
+    self.submodules = true;
 
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
