@@ -74,7 +74,6 @@ in
       services.geekdo-sync = {
         description = "Geekdo Sync";
 
-        wantedBy = [ "multi-user.target" ];
         wants = [ "network-online.target" ];
         after = [ "network-online.target" ];
 
