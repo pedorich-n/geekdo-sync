@@ -11,22 +11,31 @@
         ../dev/flake-module.nix
       ];
 
-      perSystem = _: {
-        treefmt.config = {
-          projectRoot = ../.;
+      perSystem =
+        { config, ... }:
+        {
+          treefmt.config = {
+            projectRoot = ../.;
 
-          programs = {
-            ruff-format.enable = true;
-            ruff-check.enable = true;
-          };
+            programs = {
+              # Use uv-provided ruff.
+              ruff-format = {
+                enable = true;
+                package = config.packages.ruff;
+              };
+              ruff-check = {
+                enable = true;
+                package = config.packages.ruff;
+              };
+            };
 
-          settings = {
-            formatter.deadnix.excludes = [
-              "flake-parts/nixosModules.nix"
-            ];
+            settings = {
+              formatter.deadnix.excludes = [
+                "flake-parts/nixos-modules.nix"
+              ];
+            };
           };
         };
-      };
     };
   };
 
