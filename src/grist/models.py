@@ -1,9 +1,10 @@
 from datetime import date
-from typing import Any, Optional
+from typing import Any, NewType, Optional
 
 from pydantic import BaseModel
 
-# Grist Input models (for writing to Grist)
+GristId = NewType("GristId", int)
+"""Type alias for Grist record IDs. To distinguish from other integers"""
 
 
 class GristUpsertRecord(BaseModel):
@@ -13,14 +14,14 @@ class GristUpsertRecord(BaseModel):
     fields: dict[str, Any]
 
 
-class GristItemInput(BaseModel):
-    """Input model for Item record - used when syncing data to Grist."""
-
+class GristItemBase(BaseModel):
     ItemID: str  # GeekDo item id (unique key for upsert)
     Name: str  # Human-readable item name
     Subtype: str  # Choice (e.g., ['boardgame', 'boardgameimplementation'])
     Type: str  # Choice (e.g., 'thing', 'family')
 
+
+class GristItemUpsert(GristItemBase):
     def to_upsert_record(self) -> GristUpsertRecord:
         return GristUpsertRecord(
             require={"ItemID": self.ItemID},
@@ -32,13 +33,17 @@ class GristItemInput(BaseModel):
         )
 
 
-class GristPlayerInput(BaseModel):
-    """Input model for Player record - used when syncing data to Grist."""
+class GristItemOutput(GristItemBase):
+    id: GristId
 
+
+class GristPlayerBase(BaseModel):
     Name: str  # Human-readable name (unique key for upsert)
     Username: Optional[str] = None  # GeekDo username
     UserID: Optional[str] = None  # GeekDo userid
 
+
+class GristPlayerUpsert(GristPlayerBase):
     def to_upsert_record(self) -> GristUpsertRecord:
         return GristUpsertRecord(
             require={"Name": self.Name},
@@ -49,11 +54,13 @@ class GristPlayerInput(BaseModel):
         )
 
 
-class GristPlayerPlayInput(BaseModel):
-    """Input model for PlayerPlay record - used when syncing data to Grist."""
+class GristPlayerOutput(GristPlayerBase):
+    id: GristId
 
-    Play: int  # Reference to Play record
-    Player: int  # Reference to Player record
+
+class GristPlayerPlayBase(BaseModel):
+    Play: GristId  # Reference to Play record
+    Player: GristId  # Reference to Player record
     StartPosition: Optional[str] = None
     Color: Optional[str] = None
     Score: Optional[int] = None
@@ -61,6 +68,8 @@ class GristPlayerPlayInput(BaseModel):
     New: Optional[bool] = None
     Win: Optional[bool] = None
 
+
+class GristPlayerPlayUpsert(GristPlayerPlayBase):
     def to_upsert_record(self) -> GristUpsertRecord:
         return GristUpsertRecord(
             require={
@@ -78,17 +87,21 @@ class GristPlayerPlayInput(BaseModel):
         )
 
 
-class GristPlayInput(BaseModel):
-    """Input model for Play record - used when syncing data to Grist."""
+class GristPlayerPlayOutput(GristPlayerPlayBase):
+    id: GristId
 
+
+class GristPlayBase(BaseModel):
     PlayID: str  # GeekDo play id (unique key for upsert)
     Date: date
-    Item: int  # Reference to Item record
+    Item: GristId  # Reference to Item record
     Quantity: int
     Length_Minutes: Optional[int] = None
     Comment: Optional[str] = None
     Location: Optional[str] = None
 
+
+class GristPlayUpsert(GristPlayBase):
     def to_upsert_record(self) -> GristUpsertRecord:
         return GristUpsertRecord(
             require={"PlayID": self.PlayID},
@@ -103,28 +116,5 @@ class GristPlayInput(BaseModel):
         )
 
 
-# Output models (for reading from Grist - includes Grist row IDs)
-
-
-class GristItemOutput(GristItemInput):
-    """Output model for Item record - includes Grist row ID."""
-
-    id: int  # Grist row ID
-
-
-class GristPlayerOutput(GristPlayerInput):
-    """Output model for Player record - includes Grist row ID."""
-
-    id: int  # Grist row ID
-
-
-class GristPlayerPlayOutput(GristPlayerPlayInput):
-    """Output model for PlayerPlay record - includes Grist row ID."""
-
-    id: int  # Grist row ID
-
-
-class GristPlayOutput(GristPlayInput):
-    """Output model for Play record - includes Grist row ID."""
-
-    id: int  # Grist row ID
+class GristPlayOutput(GristPlayBase):
+    id: GristId

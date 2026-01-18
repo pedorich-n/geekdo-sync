@@ -8,14 +8,15 @@ from src.geekdo.client import BGGClient
 from src.geekdo.extractors import extract_unique_items, extract_unique_players
 from src.geekdo.schemas import APIPlay
 from src.grist.models import (
-    GristItemInput,
+    GristId,
     GristItemOutput,
-    GristPlayerInput,
+    GristItemUpsert,
     GristPlayerOutput,
-    GristPlayerPlayInput,
     GristPlayerPlayOutput,
-    GristPlayInput,
+    GristPlayerPlayUpsert,
+    GristPlayerUpsert,
     GristPlayOutput,
+    GristPlayUpsert,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,7 +49,7 @@ class GristSync:
 
     # Phase 1: Check for new data & fetch only what's needed
 
-    def get_recent_plays_from_grist(self) -> dict[str, int]:
+    def get_recent_plays_from_grist(self) -> dict[str, GristId]:
         """
         Retrieve recent plays from Grist to establish sync point.
 
@@ -67,7 +68,7 @@ class GristSync:
             )
 
             # Build play_id → Grist row ID mapping using validated models
-            play_id_mapping: dict[str, int] = {}
+            play_id_mapping: dict[str, GristId] = {}
             for play_record in plays_data:
                 play_output = GristPlayOutput.model_validate(play_record)
                 play_id_mapping[play_output.PlayID] = play_output.id
@@ -172,7 +173,7 @@ class GristSync:
 
     # Phase 2: Prepare data for Grist sync
 
-    def prepare_items(self, plays: list[APIPlay]) -> dict[str, GristItemInput]:
+    def prepare_items(self, plays: list[APIPlay]) -> dict[str, GristItemUpsert]:
         """
         Prepare unique items from plays for Grist sync.
 
@@ -185,7 +186,7 @@ class GristSync:
         api_items = extract_unique_items(plays)
 
         items_dict = {
-            objectid: GristItemInput(
+            objectid: GristItemUpsert(
                 ItemID=item.objectid,
                 Name=item.name,
                 Subtype=item.subtype,
@@ -197,7 +198,7 @@ class GristSync:
         logger.debug(f"Prepared {len(items_dict)} unique items")
         return items_dict
 
-    def prepare_players(self, plays: list[APIPlay]) -> dict[str, GristPlayerInput]:
+    def prepare_players(self, plays: list[APIPlay]) -> dict[str, GristPlayerUpsert]:
         """
         Prepare unique players from plays for Grist sync.
 
@@ -210,13 +211,14 @@ class GristSync:
         api_players = extract_unique_players(plays)
 
         players_dict = {
-            name: GristPlayerInput(Name=player.name, Username=player.username, UserID=player.userid) for name, player in api_players.items()
+            name: GristPlayerUpsert(Name=player.name, Username=player.username, UserID=player.userid)
+            for name, player in api_players.items()
         }
 
         logger.debug(f"Prepared {len(players_dict)} unique players")
         return players_dict
 
-    def prepare_plays(self, plays: list[APIPlay], items_mapping: dict[str, int]) -> list[GristPlayInput]:
+    def prepare_plays(self, plays: list[APIPlay], items_mapping: dict[str, GristId]) -> list[GristPlayUpsert]:
         """
         Prepare plays with resolved item references.
 
@@ -227,7 +229,7 @@ class GristSync:
         Returns:
             List of GristPlayInput with resolved item references
         """
-        plays_list: list[GristPlayInput] = []
+        plays_list: list[GristPlayUpsert] = []
 
         for play in plays:
             item_id = play.item.objectid
@@ -235,7 +237,7 @@ class GristSync:
                 logger.warning(f"Item {item_id} not found in items_mapping for play {play.id}")
                 continue
 
-            play_input = GristPlayInput(
+            play_input = GristPlayUpsert(
                 PlayID=play.id,
                 Date=play.date,
                 Item=items_mapping[item_id],
@@ -250,8 +252,8 @@ class GristSync:
         return plays_list
 
     def prepare_player_plays(
-        self, plays: list[APIPlay], plays_mapping: dict[str, int], players_mapping: dict[str, int]
-    ) -> list[GristPlayerPlayInput]:
+        self, plays: list[APIPlay], plays_mapping: dict[str, GristId], players_mapping: dict[str, GristId]
+    ) -> list[GristPlayerPlayUpsert]:
         """
         Prepare player-play relationships with resolved references.
 
@@ -263,7 +265,7 @@ class GristSync:
         Returns:
             List of GristPlayerPlayInput with resolved references
         """
-        player_plays_list: list[GristPlayerPlayInput] = []
+        player_plays_list: list[GristPlayerPlayUpsert] = []
 
         for play in plays:
             play_id = play.id
@@ -279,7 +281,7 @@ class GristSync:
                     logger.warning(f"Player '{player.name}' not found in players_mapping for play {play_id}")
                     continue
 
-                player_play = GristPlayerPlayInput(
+                player_play = GristPlayerPlayUpsert(
                     Play=plays_mapping[play_id],
                     Player=players_mapping[player.name],
                     StartPosition=player.startposition,
@@ -296,7 +298,7 @@ class GristSync:
 
     # Phase 3: Incremental insert in dependency order (write-read pattern)
 
-    def sync_players(self, new_players: dict[str, GristPlayerInput]) -> dict[str, int]:
+    def sync_players(self, new_players: dict[str, GristPlayerUpsert]) -> dict[str, GristId]:
         """
         Upsert players to Grist and return mapping of name → Grist row ID.
 
@@ -329,7 +331,7 @@ class GristSync:
         )
 
         # Build name → Grist row ID mapping
-        players_mapping: dict[str, int] = {}
+        players_mapping: dict[str, GristId] = {}
         for record in players_data:
             player_output = GristPlayerOutput.model_validate(record)
             players_mapping[player_output.Name] = player_output.id
@@ -337,7 +339,7 @@ class GristSync:
         logger.debug(f"Players mapping contains {len(players_mapping)} entries")
         return players_mapping
 
-    def sync_items(self, new_items: dict[str, GristItemInput]) -> dict[str, int]:
+    def sync_items(self, new_items: dict[str, GristItemUpsert]) -> dict[str, GristId]:
         """
         Upsert items to Grist and return mapping of ItemID → Grist row ID.
 
@@ -370,7 +372,7 @@ class GristSync:
         )
 
         # Build ItemID → Grist row ID mapping
-        items_mapping: dict[str, int] = {}
+        items_mapping: dict[str, GristId] = {}
         for record in items_data:
             item_output = GristItemOutput.model_validate(record)
             items_mapping[item_output.ItemID] = item_output.id
@@ -380,9 +382,9 @@ class GristSync:
 
     def sync_plays(
         self,
-        plays_list: list[GristPlayInput],
-        existing_play_ids: dict[str, int],
-    ) -> dict[str, int]:
+        plays_list: list[GristPlayUpsert],
+        existing_play_ids: dict[str, GristId],
+    ) -> dict[str, GristId]:
         """
         Insert new plays to Grist.
 
@@ -419,7 +421,7 @@ class GristSync:
         )
 
         # Build PlayID → Grist row ID mapping
-        plays_mapping: dict[str, int] = {}
+        plays_mapping: dict[str, GristId] = {}
         for record in plays_data:
             play_output = GristPlayOutput.model_validate(record)
             plays_mapping[play_output.PlayID] = play_output.id
@@ -429,7 +431,7 @@ class GristSync:
 
     def sync_player_plays(
         self,
-        player_plays_list: list[GristPlayerPlayInput],
+        player_plays_list: list[GristPlayerPlayUpsert],
     ) -> None:
         """
         Insert player-play relationships to Grist.
