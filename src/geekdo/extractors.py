@@ -1,6 +1,6 @@
 """Extract unique entities from API plays."""
 
-from .schemas import APIItem, APIPlay, APIPlayer
+from .models import APIItem, APIPlay, APIPlayer
 
 
 def extract_unique_items(plays: list[APIPlay]) -> dict[str, APIItem]:

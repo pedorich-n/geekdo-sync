@@ -5,7 +5,7 @@ from typing import Optional
 import requests
 from pydantic import SecretStr
 
-from .schemas import APIPlaysResponse
+from .models import APIPlaysResponse
 from .xml_parser import parse_plays_xml
 
 logger = logging.getLogger(__name__)

@@ -25,7 +25,7 @@ class GristRecord(BaseModel):
 
 
 class GristItemBase(BaseModel):
-    ItemID: str  # GeekDo item id (unique key for upsert)
+    ItemID: int  # GeekDo item id (unique key for upsert)
     Name: str  # Human-readable item name
     Subtype: str  # Choice (e.g., ['boardgame', 'boardgameimplementation'])
     Type: str  # Choice (e.g., 'thing', 'family')
@@ -102,7 +102,7 @@ class GristPlayerPlayOutput(GristRecord, GristPlayerPlayBase):
 
 
 class GristPlayBase(BaseModel):
-    PlayID: str  # GeekDo play id (unique key for upsert)
+    PlayID: int  # GeekDo play id (unique key for upsert)
     Date: date
     Item: GristId  # Reference to Item record
     Quantity: int

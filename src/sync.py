@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Set
 
 from src.geekdo.client import BGGClient
 from src.geekdo.extractors import extract_unique_items, extract_unique_players
-from src.geekdo.schemas import APIPlay
+from src.geekdo.models import APIPlay
 from src.grist.client import GristClient
 from src.grist.models import (
     GristId,
@@ -35,9 +35,7 @@ class GristSync:
         self.grist_client = grist_client
         self.overlap_detection_limit = 100
 
-    # Phase 1: Check for new data & fetch only what's needed
-
-    def get_recent_plays_from_grist(self) -> dict[str, GristId]:
+    def get_recent_plays_from_grist(self) -> Dict[str, GristId]:
         """
         Retrieve recent plays from Grist to establish sync point.
 
@@ -52,7 +50,7 @@ class GristSync:
                 limit=self.overlap_detection_limit,
             )
 
-            play_id_mapping: dict[str, GristId] = {play.PlayID: play.id for play in plays}
+            play_id_mapping: Dict[str, GristId] = {play.PlayID: play.id for play in plays}
 
             logger.info(f"Retrieved {len(play_id_mapping)} recent plays for overlap detection")
             return play_id_mapping
@@ -86,7 +84,11 @@ class GristSync:
             logger.error(f"Failed to fetch most recent play date from Grist: {e}")
             return None
 
-    def fetch_new_plays_until_overlap(self, existing_play_ids: Set[str], mindate: Optional[date] = None) -> List[APIPlay]:
+    def fetch_new_plays_until_overlap(
+        self,
+        existing_play_ids: Set[str],
+        mindate: Optional[date] = None,
+    ) -> List[APIPlay]:
         """
         Fetch new plays from API using iterate-until-overlap strategy.
 
