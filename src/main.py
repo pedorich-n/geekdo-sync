@@ -2,10 +2,9 @@ import logging
 import sys
 from datetime import datetime
 
-from pygrister.api import GristApi  # type: ignore[import-untyped]
-
 from src.config import Config, LogFormat, LoggingConfig
 from src.geekdo.client import BGGClient
+from src.grist.client import GristClient
 from src.sync import GristSync
 
 
@@ -52,34 +51,29 @@ def main() -> int:
     logger.info(f"  Grist Document ID: {config.grist.doc_id}")
 
     try:
-        # Initialize clients
         logger.info("Initializing clients...")
-        with BGGClient(api_key=config.geekdo.token) as bgg_client:  # type: ignore[arg-type]
-            grist_api = GristApi()
+        with BGGClient(api_key=config.geekdo.token) as bgg_client:
+            with GristClient(config=config.grist) as grist_client:
+                sync = GristSync(
+                    bgg_client=bgg_client,
+                    bgg_username=config.geekdo.username,
+                    grist_client=grist_client,
+                )
 
-            # Initialize sync orchestrator
-            sync = GristSync(
-                bgg_client=bgg_client,
-                bgg_username=config.geekdo.username,
-                grist_client=grist_api,
-                grist_doc_id=config.grist.doc_id,
-            )
+                start_time = datetime.now()
+                success = sync.run_sync()
+                elapsed = datetime.now() - start_time
 
-            # Run the sync
-            start_time = datetime.now()
-            success = sync.run_sync()
-            elapsed = datetime.now() - start_time
-
-            if success:
-                logger.info("=" * 60)
-                logger.info(f"Sync completed successfully in {elapsed.total_seconds():.2f} seconds")
-                logger.info("=" * 60)
-                sys.exit(0)
-            else:
-                logger.error("=" * 60)
-                logger.error("Sync failed")
-                logger.error("=" * 60)
-                sys.exit(1)
+                if success:
+                    logger.info("=" * 60)
+                    logger.info(f"Sync completed successfully in {elapsed.total_seconds():.2f} seconds")
+                    logger.info("=" * 60)
+                    sys.exit(0)
+                else:
+                    logger.error("=" * 60)
+                    logger.error("Sync failed")
+                    logger.error("=" * 60)
+                    sys.exit(1)
 
     except KeyboardInterrupt:
         logger.warning("Sync interrupted by user")

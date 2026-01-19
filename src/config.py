@@ -1,8 +1,8 @@
 import logging
 from enum import Enum, IntEnum
-from typing import Dict
+from typing import Any, Dict
 
-from pydantic import HttpUrl, SecretStr
+from pydantic import HttpUrl, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.utils import NonEmptyStr
@@ -21,20 +21,20 @@ class LogLevel(IntEnum):
     ERROR = logging.ERROR
     CRITICAL = logging.CRITICAL
 
-    @classmethod
-    def _missing_(cls, value: object) -> "LogLevel | None":
-        """Allow creation from string names (case-insensitive)."""
-        if isinstance(value, str):
-            try:
-                return cls[value.upper()]
-            except KeyError:
-                pass
-        return None
-
 
 class LoggingConfig(BaseSettings):
     level: LogLevel = LogLevel.DEBUG
     format: LogFormat = LogFormat.FULL
+
+    @field_validator("level", mode="before")
+    @classmethod
+    def parse_log_level(cls, v: Any) -> LogLevel:
+        if isinstance(v, str):
+            try:
+                return LogLevel[v.upper()]
+            except KeyError:
+                raise ValueError(f"Invalid log level: {v}")
+        return v
 
 
 class GeekdoConfig(BaseSettings):
@@ -62,7 +62,7 @@ class GristConfig(BaseSettings):
 
 
 class Config(BaseSettings):
-    model_config = SettingsConfigDict(env_nested_delimiter="_", env_nested_max_split=1)
+    model_config = SettingsConfigDict(env_nested_delimiter="_", env_nested_max_split=1, env_file=".env")
 
     logging: LoggingConfig = LoggingConfig()
     geekdo: GeekdoConfig
