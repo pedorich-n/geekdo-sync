@@ -1,8 +1,11 @@
 import logging
 from enum import Enum, IntEnum
+from typing import Dict
 
-from pydantic import SecretStr
+from pydantic import HttpUrl, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from src.utils import NonEmptyStr
 
 
 class LogFormat(str, Enum):
@@ -40,11 +43,22 @@ class GeekdoConfig(BaseSettings):
 
 
 class GristConfig(BaseSettings):
-    # The rest of the fields are loaded by pygrister from the environment
     # See https://pygrister.readthedocs.io/en/latest/conf.html#configuration-keys
     model_config = SettingsConfigDict(extra="ignore")
 
-    doc_id: str
+    token: SecretStr
+    base_url: HttpUrl
+    doc_id: NonEmptyStr
+
+    def get_pygrister_config(self) -> Dict[str, str]:
+        # Yeah, I'll just hardcode the pygrister settings for self-hosted version
+        return {
+            "GRIST_SELF_MANAGED": "Y",
+            "GRIST_SELF_MANAGED_HOME": self.base_url.encoded_string(),
+            "GRIST_SELF_MANAGED_SINGLE_ORG": "Y",
+            "GRIST_API_KEY": self.token.get_secret_value(),
+            "GRIST_DOC_ID": self.doc_id,
+        }
 
 
 class Config(BaseSettings):

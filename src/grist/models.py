@@ -1,7 +1,11 @@
 from datetime import date
 from typing import Any, NewType, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_serializer
+
+from src.utils import OptionalNonEmptyStr
+
+from .utils import date_to_grist_date
 
 GristId = NewType("GristId", int)
 """Type alias for Grist record IDs. To distinguish from other integers"""
@@ -12,6 +16,12 @@ class GristUpsertRecord(BaseModel):
 
     require: dict[str, Any]
     fields: dict[str, Any]
+
+
+class GristRecord(BaseModel):
+    """Base model for Grist records with an ID."""
+
+    id: GristId
 
 
 class GristItemBase(BaseModel):
@@ -33,14 +43,14 @@ class GristItemUpsert(GristItemBase):
         )
 
 
-class GristItemOutput(GristItemBase):
-    id: GristId
+class GristItemOutput(GristRecord, GristItemBase):
+    pass
 
 
 class GristPlayerBase(BaseModel):
     Name: str  # Human-readable name (unique key for upsert)
-    Username: Optional[str] = None  # GeekDo username
-    UserID: Optional[str] = None  # GeekDo userid
+    Username: OptionalNonEmptyStr = None  # GeekDo username
+    UserID: OptionalNonEmptyStr = None  # GeekDo userid
 
 
 class GristPlayerUpsert(GristPlayerBase):
@@ -54,15 +64,15 @@ class GristPlayerUpsert(GristPlayerBase):
         )
 
 
-class GristPlayerOutput(GristPlayerBase):
-    id: GristId
+class GristPlayerOutput(GristRecord, GristPlayerBase):
+    pass
 
 
 class GristPlayerPlayBase(BaseModel):
     Play: GristId  # Reference to Play record
     Player: GristId  # Reference to Player record
-    StartPosition: Optional[str] = None
-    Color: Optional[str] = None
+    StartPosition: OptionalNonEmptyStr = None
+    Color: OptionalNonEmptyStr = None
     Score: Optional[int] = None
     Rating: Optional[int] = None
     New: Optional[bool] = None
@@ -87,8 +97,8 @@ class GristPlayerPlayUpsert(GristPlayerPlayBase):
         )
 
 
-class GristPlayerPlayOutput(GristPlayerPlayBase):
-    id: GristId
+class GristPlayerPlayOutput(GristRecord, GristPlayerPlayBase):
+    pass
 
 
 class GristPlayBase(BaseModel):
@@ -97,11 +107,15 @@ class GristPlayBase(BaseModel):
     Item: GristId  # Reference to Item record
     Quantity: int
     Length_Minutes: Optional[int] = None
-    Comment: Optional[str] = None
-    Location: Optional[str] = None
+    Comment: OptionalNonEmptyStr = None
+    Location: OptionalNonEmptyStr = None
 
 
 class GristPlayUpsert(GristPlayBase):
+    @field_serializer("Date")
+    def serialize_Date(self, value: date) -> int:
+        return date_to_grist_date(value)
+
     def to_upsert_record(self) -> GristUpsertRecord:
         return GristUpsertRecord(
             require={"PlayID": self.PlayID},
@@ -116,5 +130,5 @@ class GristPlayUpsert(GristPlayBase):
         )
 
 
-class GristPlayOutput(GristPlayBase):
-    id: GristId
+class GristPlayOutput(GristRecord, GristPlayBase):
+    pass
