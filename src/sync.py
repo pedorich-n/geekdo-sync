@@ -1,21 +1,17 @@
 import logging
 import time
 from datetime import date, timedelta
-
-from pygrister.api import GristApi  # type: ignore[import-untyped]
+from typing import Dict, List, Optional, Set
 
 from src.geekdo.client import BGGClient
 from src.geekdo.extractors import extract_unique_items, extract_unique_players
 from src.geekdo.schemas import APIPlay
+from src.grist.client import GristClient
 from src.grist.models import (
     GristId,
-    GristItemOutput,
     GristItemUpsert,
-    GristPlayerOutput,
-    GristPlayerPlayOutput,
     GristPlayerPlayUpsert,
     GristPlayerUpsert,
-    GristPlayOutput,
     GristPlayUpsert,
 )
 
@@ -25,27 +21,19 @@ logger = logging.getLogger(__name__)
 class GristSync:
     """Orchestrates incremental synchronization of GeekDo play data to Grist."""
 
-    def __init__(self, bgg_client: BGGClient, bgg_username: str, grist_client: GristApi, grist_doc_id: str):
+    def __init__(self, bgg_client: BGGClient, bgg_username: str, grist_client: GristClient):
         """
         Initialize Grist sync client.
 
         Args:
             bgg_client: BGGClient instance for fetching play data from BGG API
             bgg_username: BGG username to fetch plays for
-            grist_client: Grist client instance (pygrister) for syncing to Grist
-            grist_doc_id: Grist document ID to sync data into
+            grist_client: GristClient instance for syncing to Grist
         """
         self.bgg_client = bgg_client
         self.bgg_username = bgg_username
         self.grist_client = grist_client
-        self.grist_doc_id = grist_doc_id
-        self.items_table_id = "Items"
-        self.players_table_id = "Players"
-        self.plays_table_id = "Plays"
-        self.player_plays_table_id = "PlayerPlays"
         self.overlap_detection_limit = 100
-
-        self.grist_client.in_converter = {self.plays_table_id: {"Date": lambda d: d.isoformat()}}
 
     # Phase 1: Check for new data & fetch only what's needed
 
@@ -59,19 +47,12 @@ class GristSync:
             Dictionary mapping GeekDo play_id → Grist row ID
         """
         try:
-            # Fetch most recent plays sorted by date descending
-            _, plays_data = self.grist_client.list_records(
-                doc_id=self.grist_doc_id,
-                table_id=self.plays_table_id,
+            plays = self.grist_client.get_plays(
+                sort_by="-Date",
                 limit=self.overlap_detection_limit,
-                sort="-Date",
             )
 
-            # Build play_id → Grist row ID mapping using validated models
-            play_id_mapping: dict[str, GristId] = {}
-            for play_record in plays_data:
-                play_output = GristPlayOutput.model_validate(play_record)
-                play_id_mapping[play_output.PlayID] = play_output.id
+            play_id_mapping: dict[str, GristId] = {play.PlayID: play.id for play in plays}
 
             logger.info(f"Retrieved {len(play_id_mapping)} recent plays for overlap detection")
             return play_id_mapping
@@ -80,7 +61,7 @@ class GristSync:
             logger.error(f"Failed to fetch recent plays from Grist: {e}")
             return {}
 
-    def get_most_recent_play_date(self) -> date | None:
+    def get_most_recent_play_date(self) -> Optional[date]:
         """
         Get the most recent play date from Grist.
 
@@ -88,25 +69,24 @@ class GristSync:
             Most recent play date, or None if no plays exist
         """
         try:
-            _, plays_data = self.grist_client.list_records(
-                doc_id=self.grist_doc_id,
-                table_id=self.plays_table_id,
+            plays = self.grist_client.get_plays(
+                sort_by="-Date",
                 limit=1,
-                sort="-Date",
             )
 
-            if not plays_data:
+            if not plays:
                 return None
 
-            play_output = GristPlayOutput.model_validate(plays_data[0])
-            logger.debug(f"Most recent play date: {play_output.Date}")
-            return play_output.Date
+            result = plays[0].Date
+
+            logger.debug(f"Most recent play date: {result}")
+            return result
 
         except Exception as e:
             logger.error(f"Failed to fetch most recent play date from Grist: {e}")
             return None
 
-    def fetch_new_plays_until_overlap(self, existing_play_ids: set[str], mindate: date | None = None) -> list[APIPlay]:
+    def fetch_new_plays_until_overlap(self, existing_play_ids: Set[str], mindate: Optional[date] = None) -> List[APIPlay]:
         """
         Fetch new plays from API using iterate-until-overlap strategy.
 
@@ -120,14 +100,13 @@ class GristSync:
         Returns:
             List of new APIPlay objects that don't exist in Grist
         """
-        new_plays: list[APIPlay] = []
+        new_plays: List[APIPlay] = []
         page = 1
         found_overlap = False
 
         logger.info(f"Starting iterate-until-overlap fetch (mindate: {mindate})")
 
         while not found_overlap:
-            # Add delay before fetching (except for first page)
             if page > 1:
                 time.sleep(self.bgg_client.delay)
 
@@ -142,7 +121,7 @@ class GristSync:
                 logger.debug("No plays in response, reached end of data")
                 break
 
-            # Check for overlap with existing plays
+            # Intersect current page play IDs with existing play IDs. If the resulting set is non-empty, there's an overlap.
             page_play_ids = {play.id for play in response.play}
             overlap = page_play_ids & existing_play_ids
 
@@ -158,7 +137,6 @@ class GristSync:
                 new_plays.extend(response.play)
                 logger.debug(f"Page {page}: all {len(response.play)} plays are new")
 
-            # Check if we've reached the last page
             if len(response.play) < 100:
                 logger.debug(f"Page {page} has < 100 plays, reached end of user's play history")
                 break
@@ -171,9 +149,7 @@ class GristSync:
         logger.info(f"Collected {len(new_plays)} new plays total")
         return new_plays
 
-    # Phase 2: Prepare data for Grist sync
-
-    def prepare_items(self, plays: list[APIPlay]) -> dict[str, GristItemUpsert]:
+    def prepare_items(self, plays: List[APIPlay]) -> Dict[str, GristItemUpsert]:
         """
         Prepare unique items from plays for Grist sync.
 
@@ -198,7 +174,7 @@ class GristSync:
         logger.debug(f"Prepared {len(items_dict)} unique items")
         return items_dict
 
-    def prepare_players(self, plays: list[APIPlay]) -> dict[str, GristPlayerUpsert]:
+    def prepare_players(self, plays: List[APIPlay]) -> Dict[str, GristPlayerUpsert]:
         """
         Prepare unique players from plays for Grist sync.
 
@@ -218,7 +194,7 @@ class GristSync:
         logger.debug(f"Prepared {len(players_dict)} unique players")
         return players_dict
 
-    def prepare_plays(self, plays: list[APIPlay], items_mapping: dict[str, GristId]) -> list[GristPlayUpsert]:
+    def prepare_plays(self, plays: List[APIPlay], items_mapping: Dict[str, GristId]) -> List[GristPlayUpsert]:
         """
         Prepare plays with resolved item references.
 
@@ -229,7 +205,7 @@ class GristSync:
         Returns:
             List of GristPlayInput with resolved item references
         """
-        plays_list: list[GristPlayUpsert] = []
+        plays_list: List[GristPlayUpsert] = []
 
         for play in plays:
             item_id = play.item.objectid
@@ -252,8 +228,11 @@ class GristSync:
         return plays_list
 
     def prepare_player_plays(
-        self, plays: list[APIPlay], plays_mapping: dict[str, GristId], players_mapping: dict[str, GristId]
-    ) -> list[GristPlayerPlayUpsert]:
+        self,
+        plays: List[APIPlay],
+        plays_mapping: Dict[str, GristId],
+        players_mapping: Dict[str, GristId],
+    ) -> List[GristPlayerPlayUpsert]:
         """
         Prepare player-play relationships with resolved references.
 
@@ -265,7 +244,7 @@ class GristSync:
         Returns:
             List of GristPlayerPlayInput with resolved references
         """
-        player_plays_list: list[GristPlayerPlayUpsert] = []
+        player_plays_list: List[GristPlayerPlayUpsert] = []
 
         for play in plays:
             play_id = play.id
@@ -298,7 +277,7 @@ class GristSync:
 
     # Phase 3: Incremental insert in dependency order (write-read pattern)
 
-    def sync_players(self, new_players: dict[str, GristPlayerUpsert]) -> dict[str, GristId]:
+    def sync_players(self, new_players: Dict[str, GristPlayerUpsert]) -> Dict[str, GristId]:
         """
         Upsert players to Grist and return mapping of name → Grist row ID.
 
@@ -314,32 +293,19 @@ class GristSync:
 
         logger.debug(f"Upserting {len(new_players)} players to Grist")
 
-        # Convert to upsert records with require/fields structure
-        records_to_upsert = [player.to_upsert_record().model_dump() for player in new_players.values()]
-
-        # Upsert using add_update_records
-        self.grist_client.add_update_records(
-            doc_id=self.grist_doc_id,
-            table_id=self.players_table_id,
-            records=records_to_upsert,
-        )
+        # Upsert players
+        self.grist_client.upsert_players(list(new_players.values()))
 
         # Read back all players to get complete mapping
-        _, players_data = self.grist_client.list_records(
-            doc_id=self.grist_doc_id,
-            table_id=self.players_table_id,
-        )
+        players = self.grist_client.get_players(limit=None)
 
         # Build name → Grist row ID mapping
-        players_mapping: dict[str, GristId] = {}
-        for record in players_data:
-            player_output = GristPlayerOutput.model_validate(record)
-            players_mapping[player_output.Name] = player_output.id
+        players_mapping: Dict[str, GristId] = {player.Name: player.id for player in players}
 
         logger.debug(f"Players mapping contains {len(players_mapping)} entries")
         return players_mapping
 
-    def sync_items(self, new_items: dict[str, GristItemUpsert]) -> dict[str, GristId]:
+    def sync_items(self, new_items: Dict[str, GristItemUpsert]) -> Dict[str, GristId]:
         """
         Upsert items to Grist and return mapping of ItemID → Grist row ID.
 
@@ -355,36 +321,23 @@ class GristSync:
 
         logger.debug(f"Upserting {len(new_items)} items to Grist")
 
-        # Convert to upsert records with require/fields structure
-        records_to_upsert = [item.to_upsert_record().model_dump() for item in new_items.values()]
-
-        # Upsert using add_update_records
-        self.grist_client.add_update_records(
-            doc_id=self.grist_doc_id,
-            table_id=self.items_table_id,
-            records=records_to_upsert,
-        )
+        # Upsert items
+        self.grist_client.upsert_items(list(new_items.values()))
 
         # Read back all items to get complete mapping
-        _, items_data = self.grist_client.list_records(
-            doc_id=self.grist_doc_id,
-            table_id=self.items_table_id,
-        )
+        items = self.grist_client.get_items(limit=None)
 
         # Build ItemID → Grist row ID mapping
-        items_mapping: dict[str, GristId] = {}
-        for record in items_data:
-            item_output = GristItemOutput.model_validate(record)
-            items_mapping[item_output.ItemID] = item_output.id
+        items_mapping: Dict[str, GristId] = {item.ItemID: item.id for item in items}
 
         logger.debug(f"Items mapping contains {len(items_mapping)} entries")
         return items_mapping
 
     def sync_plays(
         self,
-        plays_list: list[GristPlayUpsert],
-        existing_play_ids: dict[str, GristId],
-    ) -> dict[str, GristId]:
+        plays_list: List[GristPlayUpsert],
+        existing_play_ids: Dict[str, GristId],
+    ) -> Dict[str, GristId]:
         """
         Insert new plays to Grist.
 
@@ -404,37 +357,24 @@ class GristSync:
 
         logger.debug(f"Inserting {len(plays_to_insert)} new plays to Grist")
 
-        # Prepare records for insertion
-        records_to_insert = [play.to_upsert_record().model_dump() for play in plays_to_insert]
-
-        # Insert plays
-        self.grist_client.add_update_records(
-            doc_id=self.grist_doc_id,
-            table_id=self.plays_table_id,
-            records=records_to_insert,
-        )
+        # Upsert plays
+        self.grist_client.upsert_plays(plays_to_insert)
 
         # Read back all plays to get complete mapping
-        _, plays_data = self.grist_client.list_records(
-            doc_id=self.grist_doc_id,
-            table_id=self.plays_table_id,
-        )
+        plays = self.grist_client.get_plays(limit=None)
 
         # Build PlayID → Grist row ID mapping
-        plays_mapping: dict[str, GristId] = {}
-        for record in plays_data:
-            play_output = GristPlayOutput.model_validate(record)
-            plays_mapping[play_output.PlayID] = play_output.id
+        plays_mapping: Dict[str, GristId] = {play.PlayID: play.id for play in plays}
 
         logger.debug(f"Plays mapping contains {len(plays_mapping)} entries")
         return plays_mapping
 
     def sync_player_plays(
         self,
-        player_plays_list: list[GristPlayerPlayUpsert],
+        player_plays_list: List[GristPlayerPlayUpsert],
     ) -> None:
         """
-        Insert player-play relationships to Grist.
+        Upsert player-play relationships to Grist.
 
         Args:
             player_plays_list: List of player-play relationships with resolved references
@@ -443,18 +383,11 @@ class GristSync:
             logger.debug("No player-plays to sync")
             return
 
-        logger.debug(f"Inserting {len(player_plays_list)} player-play relationships to Grist")
+        logger.debug(f"Upserting {len(player_plays_list)} player-play relationships to Grist")
 
-        # Prepare records for insertion
-        records_to_insert = [pp.model_dump() for pp in player_plays_list]
-
-        # Insert player-plays
-        self.grist_client.add_records(
-            doc_id=self.grist_doc_id,
-            table_id=self.player_plays_table_id,
-            records=records_to_insert,
-        )
-        logger.debug(f"Inserted {len(records_to_insert)} player-play relationships")
+        # Upsert player-plays
+        self.grist_client.upsert_player_plays(player_plays_list)
+        logger.debug(f"Upserted {len(player_plays_list)} player-play relationships")
 
     # Phase 4: Validation & orchestration
 
@@ -477,27 +410,15 @@ class GristSync:
 
             # Check 1: Verify all tables have data
             logger.debug("Check 1: Verifying table record counts")
-            _, items_data = self.grist_client.list_records(
-                doc_id=self.grist_doc_id,
-                table_id=self.items_table_id,
-            )
-            _, players_data = self.grist_client.list_records(
-                doc_id=self.grist_doc_id,
-                table_id=self.players_table_id,
-            )
-            _, plays_data = self.grist_client.list_records(
-                doc_id=self.grist_doc_id,
-                table_id=self.plays_table_id,
-            )
-            _, player_plays_data = self.grist_client.list_records(
-                doc_id=self.grist_doc_id,
-                table_id=self.player_plays_table_id,
-            )
+            items = self.grist_client.get_items(limit=None)
+            players = self.grist_client.get_players(limit=None)
+            plays = self.grist_client.get_plays(limit=None)
+            player_plays = self.grist_client.get_player_plays(limit=None)
 
-            items_count = len(items_data)
-            players_count = len(players_data)
-            plays_count = len(plays_data)
-            player_plays_count = len(player_plays_data)
+            items_count = len(items)
+            players_count = len(players)
+            plays_count = len(plays)
+            player_plays_count = len(player_plays)
 
             logger.info(f"  Items: {items_count}")
             logger.info(f"  Players: {players_count}")
@@ -509,11 +430,10 @@ class GristSync:
 
             # Check 2: Verify referential integrity for Plays → Items
             logger.debug("Check 2: Validating Plays → Items references")
-            valid_item_ids = {GristItemOutput.model_validate(item).id for item in items_data}
+            valid_item_ids = {item.id for item in items}
             invalid_play_items = []
 
-            for play_record in plays_data:
-                play = GristPlayOutput.model_validate(play_record)
+            for play in plays:
                 if play.Item not in valid_item_ids:
                     invalid_play_items.append((play.id, play.PlayID, play.Item))
 
@@ -527,12 +447,11 @@ class GristSync:
 
             # Check 3: Verify referential integrity for PlayerPlays → Plays and Players
             logger.debug("Check 3: Validating PlayerPlays → Plays and Players references")
-            valid_play_ids = {GristPlayOutput.model_validate(play).id for play in plays_data}
-            valid_player_ids = {GristPlayerOutput.model_validate(player).id for player in players_data}
+            valid_play_ids = {play.id for play in plays}
+            valid_player_ids = {player.id for player in players}
             invalid_player_plays = []
 
-            for pp_record in player_plays_data:
-                pp = GristPlayerPlayOutput.model_validate(pp_record)
+            for pp in player_plays:
                 if pp.Play not in valid_play_ids:
                     invalid_player_plays.append(("play", pp.id, pp.Play))
                 if pp.Player not in valid_player_ids:
@@ -548,11 +467,10 @@ class GristSync:
 
             # Check 4: Verify no duplicate PlayIDs
             logger.debug("Check 4: Checking for duplicate PlayIDs")
-            play_ids_seen = set()
-            duplicate_play_ids = []
+            play_ids_seen: Set[str] = set()
+            duplicate_play_ids: List[str] = []
 
-            for play_record in plays_data:
-                play = GristPlayOutput.model_validate(play_record)
+            for play in plays:
                 if play.PlayID in play_ids_seen:
                     duplicate_play_ids.append(play.PlayID)
                 play_ids_seen.add(play.PlayID)
@@ -567,11 +485,10 @@ class GristSync:
 
             # Check 5: Verify no duplicate ItemIDs
             logger.debug("Check 5: Checking for duplicate ItemIDs")
-            item_ids_seen = set()
-            duplicate_item_ids = []
+            item_ids_seen: Set[str] = set()
+            duplicate_item_ids: List[str] = []
 
-            for item_record in items_data:
-                item = GristItemOutput.model_validate(item_record)
+            for item in items:
                 if item.ItemID in item_ids_seen:
                     duplicate_item_ids.append(item.ItemID)
                 item_ids_seen.add(item.ItemID)
