@@ -5,7 +5,7 @@ from typing import Optional
 import requests
 from pydantic import SecretStr
 
-from .models import APIPlaysResponse
+from .models import GeekdoPlaysResponse
 from .xml_parser import parse_plays_xml
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ class BGGClient:
         page: int = 1,
         mindate: Optional[date] = None,
         maxdate: Optional[date] = None,
-    ) -> APIPlaysResponse:
+    ) -> GeekdoPlaysResponse:
         url = f"{BGG_API_BASE_URL}/plays"
         params: dict[str, str] = {
             "username": username,

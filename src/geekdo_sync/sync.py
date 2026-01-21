@@ -3,11 +3,10 @@ import time
 from datetime import date, timedelta
 from typing import Dict, List, Optional, Set
 
-from src.geekdo.client import BGGClient
-from src.geekdo.extractors import extract_unique_items, extract_unique_players
-from src.geekdo.models import APIItem, APIPlay, ItemId, PlayId
-from src.grist.client import GristClient
-from src.grist.models import (
+from geekdo_sync.geekdo import BGGClient, GeekdoItem, GeekdoItemId, GeekdoPlay, GeekdoPlayId
+from geekdo_sync.geekdo.extractors import extract_unique_items, extract_unique_players
+from geekdo_sync.grist import (
+    GristClient,
     GristId,
     GristItemUpsert,
     GristPlayerPlayUpsert,
@@ -27,14 +26,14 @@ class SyncProcess:
         self.grist_client = grist_client
         self.overlap_detection_limit = 100
 
-    def _get_recent_plays_from_grist(self) -> Dict[PlayId, GristId]:
+    def _get_recent_plays_from_grist(self) -> Dict[GeekdoPlayId, GristId]:
         try:
             plays = self.grist_client.get_plays(
                 sort_by="-Date",
                 limit=self.overlap_detection_limit,
             )
 
-            play_id_mapping: Dict[PlayId, GristId] = {PlayId(play.PlayID): play.id for play in plays}
+            play_id_mapping: Dict[GeekdoPlayId, GristId] = {GeekdoPlayId(play.PlayID): play.id for play in plays}
 
             logger.info(f"Retrieved {len(play_id_mapping)} recent plays for overlap detection")
             return play_id_mapping
@@ -64,9 +63,9 @@ class SyncProcess:
 
     def _fetch_new_plays_until_overlap(
         self,
-        existing_play_ids: Set[PlayId],
+        existing_play_ids: Set[GeekdoPlayId],
         mindate: Optional[date] = None,
-    ) -> List[APIPlay]:
+    ) -> List[GeekdoPlay]:
         """
         Fetch new plays from API using iterate-until-overlap strategy.
 
@@ -80,7 +79,7 @@ class SyncProcess:
         Returns:
             List of new APIPlay objects that don't exist in Grist
         """
-        new_plays: List[APIPlay] = []
+        new_plays: List[GeekdoPlay] = []
         page = 1
         found_overlap = False
 
@@ -129,8 +128,8 @@ class SyncProcess:
         logger.info(f"Collected {len(new_plays)} new plays total")
         return new_plays
 
-    def _prepare_items(self, plays: List[APIPlay]) -> Dict[ItemId, GristItemUpsert]:
-        api_items: Dict[ItemId, APIItem] = extract_unique_items(plays)
+    def _prepare_items(self, plays: List[GeekdoPlay]) -> Dict[GeekdoItemId, GristItemUpsert]:
+        api_items: Dict[GeekdoItemId, GeekdoItem] = extract_unique_items(plays)
 
         items_dict = {
             objectid: GristItemUpsert(
@@ -145,7 +144,7 @@ class SyncProcess:
         logger.debug(f"Prepared {len(items_dict)} unique items")
         return items_dict
 
-    def _prepare_players(self, plays: List[APIPlay]) -> Dict[str, GristPlayerUpsert]:
+    def _prepare_players(self, plays: List[GeekdoPlay]) -> Dict[str, GristPlayerUpsert]:
         """
         Returns:
             Dictionary mapping player name to GristPlayerUpsert.
@@ -160,7 +159,7 @@ class SyncProcess:
         logger.debug(f"Prepared {len(players_dict)} unique players")
         return players_dict
 
-    def _prepare_plays(self, plays: List[APIPlay], items_mapping: Dict[ItemId, GristId]) -> List[GristPlayUpsert]:
+    def _prepare_plays(self, plays: List[GeekdoPlay], items_mapping: Dict[GeekdoItemId, GristId]) -> List[GristPlayUpsert]:
         plays_list: List[GristPlayUpsert] = []
 
         for play in plays:
@@ -185,8 +184,8 @@ class SyncProcess:
 
     def _prepare_player_plays(
         self,
-        plays: List[APIPlay],
-        plays_mapping: Dict[PlayId, GristId],
+        plays: List[GeekdoPlay],
+        plays_mapping: Dict[GeekdoPlayId, GristId],
         players_mapping: Dict[str, GristId],
     ) -> List[GristPlayerPlayUpsert]:
         player_plays_list: List[GristPlayerPlayUpsert] = []
@@ -243,7 +242,7 @@ class SyncProcess:
         logger.debug(f"Players mapping contains {len(players_mapping)} entries")
         return players_mapping
 
-    def _sync_items(self, new_items: Dict[ItemId, GristItemUpsert]) -> Dict[ItemId, GristId]:
+    def _sync_items(self, new_items: Dict[GeekdoItemId, GristItemUpsert]) -> Dict[GeekdoItemId, GristId]:
         """
         Args:
             new_items: Items to upsert (by objectid)
@@ -261,7 +260,7 @@ class SyncProcess:
 
         items = self.grist_client.get_items(limit=None)
 
-        items_mapping: Dict[ItemId, GristId] = {ItemId(item.ItemID): item.id for item in items}
+        items_mapping: Dict[GeekdoItemId, GristId] = {GeekdoItemId(item.ItemID): item.id for item in items}
 
         logger.debug(f"Items mapping contains {len(items_mapping)} entries")
         return items_mapping
@@ -269,8 +268,8 @@ class SyncProcess:
     def _sync_plays(
         self,
         plays_list: List[GristPlayUpsert],
-        existing_play_ids: Dict[PlayId, GristId],
-    ) -> Dict[PlayId, GristId]:
+        existing_play_ids: Dict[GeekdoPlayId, GristId],
+    ) -> Dict[GeekdoPlayId, GristId]:
         """
         Args:
             plays_list: List of plays with resolved item references
@@ -292,7 +291,7 @@ class SyncProcess:
 
         plays = self.grist_client.get_plays(limit=None)
 
-        plays_mapping: Dict[PlayId, GristId] = {PlayId(play.PlayID): play.id for play in plays}
+        plays_mapping: Dict[GeekdoPlayId, GristId] = {GeekdoPlayId(play.PlayID): play.id for play in plays}
 
         logger.debug(f"Plays mapping contains {len(plays_mapping)} entries")
         return plays_mapping
@@ -312,12 +311,12 @@ class SyncProcess:
 
     def _validate_sync(
         self,
-        synced_play_ids: List[PlayId],
-        synced_item_ids: List[ItemId],
+        synced_play_ids: List[GeekdoPlayId],
+        synced_item_ids: List[GeekdoItemId],
         synced_player_names: List[str],
-        items_mapping: Dict[ItemId, GristId],
+        items_mapping: Dict[GeekdoItemId, GristId],
         players_mapping: Dict[str, GristId],
-        plays_mapping: Dict[PlayId, GristId],
+        plays_mapping: Dict[GeekdoPlayId, GristId],
     ) -> bool:
         """
         Validate that the newly synced records were inserted successfully.
@@ -450,7 +449,7 @@ class SyncProcess:
 
             # Phase 6: Validation
             logger.info("Phase 6: Validating sync")
-            synced_play_ids = [PlayId(play.PlayID) for play in plays_list]
+            synced_play_ids = [GeekdoPlayId(play.PlayID) for play in plays_list]
             synced_item_ids = list(items_dict.keys())
             synced_player_names = list(players_dict.keys())
 
