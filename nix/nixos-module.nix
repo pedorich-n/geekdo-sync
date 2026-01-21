@@ -77,7 +77,14 @@ in
         wants = [ "network-online.target" ];
         after = [ "network-online.target" ];
 
-        environment = cfg.environment;
+        environment = lib.mkMerge [
+          {
+            LOGGING_LEVEL = lib.mkDefault "INFO";
+            LOGGING_FORMAT = lib.mkDefault "systemd";
+          }
+          cfg.environment
+        ];
+
         serviceConfig = {
           ExecStart = lib.getExe cfg.package;
 
