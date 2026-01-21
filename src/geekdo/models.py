@@ -12,6 +12,9 @@ UserId = NewType("UserId", int)
 PlayId = NewType("PlayId", int)
 """Type alias for BoardGameGeek play IDs. To distinguish from other integers"""
 
+ItemId = NewType("ItemId", int)
+"""Type alias for BoardGameGeek item IDs. To distinguish from other integers"""
+
 
 def _parse_optional_id(val: Any) -> Optional[int]:
     if isinstance(val, str):
@@ -49,6 +52,12 @@ def _parse_play_id(val: Any) -> PlayId:
         raise ValueError("PlayId cannot be empty or zero")
     return PlayId(res)
 
+def _parse_item_id(val: Any) -> ItemId:
+    res = _parse_optional_id(val)
+    if res is None:
+        raise ValueError("ItemId cannot be empty or zero")
+    return ItemId(res)
+
 
 class APISubtype(BaseXmlModel, tag="subtype"):
     value: str = attr()
@@ -63,7 +72,7 @@ class APIItem(BaseXmlModel, tag="item"):
 
     name: str = attr()
     objecttype: str = attr()
-    objectid: str = attr()
+    objectid: Annotated[ItemId, BeforeValidator(_parse_item_id)] = attr()
     subtypes: APISubtypes = element()
 
     @computed_field  # type: ignore[prop-decorator]
@@ -74,8 +83,8 @@ class APIItem(BaseXmlModel, tag="item"):
 
 class APIPlayer(BaseXmlModel, tag="player"):
     username: OptionalNonEmptyStr = attr(default=None)
-    userid: Annotated[Optional[UserId], BeforeValidator(_parse_optional_id)] = attr(default=None)
-    name: OptionalNonEmptyStr = attr()
+    userid: Annotated[Optional[UserId], BeforeValidator(_parse_optional_user_id)] = attr(default=None)
+    name: NonEmptyStr = attr()
     startposition: OptionalNonEmptyStr = attr(default=None)
     color: OptionalNonEmptyStr = attr(default=None)
     score: OptionalFromNonEmptyStr[int] = attr(default=None)

@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Set
 
 from src.geekdo.client import BGGClient
 from src.geekdo.extractors import extract_unique_items, extract_unique_players
-from src.geekdo.models import APIPlay
+from src.geekdo.models import APIItem, APIPlay, ItemId, PlayId
 from src.grist.client import GristClient
 from src.grist.models import (
     GristId,
@@ -35,7 +35,7 @@ class GristSync:
         self.grist_client = grist_client
         self.overlap_detection_limit = 100
 
-    def get_recent_plays_from_grist(self) -> Dict[str, GristId]:
+    def get_recent_plays_from_grist(self) -> Dict[PlayId, GristId]:
         """
         Retrieve recent plays from Grist to establish sync point.
 
@@ -50,7 +50,7 @@ class GristSync:
                 limit=self.overlap_detection_limit,
             )
 
-            play_id_mapping: Dict[str, GristId] = {play.PlayID: play.id for play in plays}
+            play_id_mapping: Dict[PlayId, GristId] = {PlayId(play.PlayID): play.id for play in plays}
 
             logger.info(f"Retrieved {len(play_id_mapping)} recent plays for overlap detection")
             return play_id_mapping
@@ -86,7 +86,7 @@ class GristSync:
 
     def fetch_new_plays_until_overlap(
         self,
-        existing_play_ids: Set[str],
+        existing_play_ids: Set[PlayId],
         mindate: Optional[date] = None,
     ) -> List[APIPlay]:
         """
@@ -151,7 +151,7 @@ class GristSync:
         logger.info(f"Collected {len(new_plays)} new plays total")
         return new_plays
 
-    def prepare_items(self, plays: List[APIPlay]) -> Dict[str, GristItemUpsert]:
+    def prepare_items(self, plays: List[APIPlay]) -> Dict[ItemId, GristItemUpsert]:
         """
         Prepare unique items from plays for Grist sync.
 
@@ -161,7 +161,7 @@ class GristSync:
         Returns:
             Dictionary mapping item objectid to GristItemInput
         """
-        api_items = extract_unique_items(plays)
+        api_items: Dict[ItemId, APIItem] = extract_unique_items(plays)
 
         items_dict = {
             objectid: GristItemUpsert(
@@ -196,7 +196,7 @@ class GristSync:
         logger.debug(f"Prepared {len(players_dict)} unique players")
         return players_dict
 
-    def prepare_plays(self, plays: List[APIPlay], items_mapping: Dict[str, GristId]) -> List[GristPlayUpsert]:
+    def prepare_plays(self, plays: List[APIPlay], items_mapping: Dict[ItemId, GristId]) -> List[GristPlayUpsert]:
         """
         Prepare plays with resolved item references.
 
@@ -232,7 +232,7 @@ class GristSync:
     def prepare_player_plays(
         self,
         plays: List[APIPlay],
-        plays_mapping: Dict[str, GristId],
+        plays_mapping: Dict[PlayId, GristId],
         players_mapping: Dict[str, GristId],
     ) -> List[GristPlayerPlayUpsert]:
         """
@@ -277,8 +277,6 @@ class GristSync:
         logger.debug(f"Prepared {len(player_plays_list)} player-play relationships")
         return player_plays_list
 
-    # Phase 3: Incremental insert in dependency order (write-read pattern)
-
     def sync_players(self, new_players: Dict[str, GristPlayerUpsert]) -> Dict[str, GristId]:
         """
         Upsert players to Grist and return mapping of name → Grist row ID.
@@ -295,19 +293,16 @@ class GristSync:
 
         logger.debug(f"Upserting {len(new_players)} players to Grist")
 
-        # Upsert players
         self.grist_client.upsert_players(list(new_players.values()))
 
-        # Read back all players to get complete mapping
         players = self.grist_client.get_players(limit=None)
 
-        # Build name → Grist row ID mapping
         players_mapping: Dict[str, GristId] = {player.Name: player.id for player in players}
 
         logger.debug(f"Players mapping contains {len(players_mapping)} entries")
         return players_mapping
 
-    def sync_items(self, new_items: Dict[str, GristItemUpsert]) -> Dict[str, GristId]:
+    def sync_items(self, new_items: Dict[ItemId, GristItemUpsert]) -> Dict[ItemId, GristId]:
         """
         Upsert items to Grist and return mapping of ItemID → Grist row ID.
 
@@ -323,14 +318,11 @@ class GristSync:
 
         logger.debug(f"Upserting {len(new_items)} items to Grist")
 
-        # Upsert items
         self.grist_client.upsert_items(list(new_items.values()))
 
-        # Read back all items to get complete mapping
         items = self.grist_client.get_items(limit=None)
 
-        # Build ItemID → Grist row ID mapping
-        items_mapping: Dict[str, GristId] = {item.ItemID: item.id for item in items}
+        items_mapping: Dict[ItemId, GristId] = {ItemId(item.ItemID): item.id for item in items}
 
         logger.debug(f"Items mapping contains {len(items_mapping)} entries")
         return items_mapping
@@ -338,8 +330,8 @@ class GristSync:
     def sync_plays(
         self,
         plays_list: List[GristPlayUpsert],
-        existing_play_ids: Dict[str, GristId],
-    ) -> Dict[str, GristId]:
+        existing_play_ids: Dict[PlayId, GristId],
+    ) -> Dict[PlayId, GristId]:
         """
         Insert new plays to Grist.
 
@@ -366,7 +358,7 @@ class GristSync:
         plays = self.grist_client.get_plays(limit=None)
 
         # Build PlayID → Grist row ID mapping
-        plays_mapping: Dict[str, GristId] = {play.PlayID: play.id for play in plays}
+        plays_mapping: Dict[PlayId, GristId] = {PlayId(play.PlayID): play.id for play in plays}
 
         logger.debug(f"Plays mapping contains {len(plays_mapping)} entries")
         return plays_mapping
@@ -469,8 +461,8 @@ class GristSync:
 
             # Check 4: Verify no duplicate PlayIDs
             logger.debug("Check 4: Checking for duplicate PlayIDs")
-            play_ids_seen: Set[str] = set()
-            duplicate_play_ids: List[str] = []
+            play_ids_seen: Set[int] = set()
+            duplicate_play_ids: List[int] = []
 
             for play in plays:
                 if play.PlayID in play_ids_seen:
@@ -487,8 +479,8 @@ class GristSync:
 
             # Check 5: Verify no duplicate ItemIDs
             logger.debug("Check 5: Checking for duplicate ItemIDs")
-            item_ids_seen: Set[str] = set()
-            duplicate_item_ids: List[str] = []
+            item_ids_seen: Set[int] = set()
+            duplicate_item_ids: List[int] = []
 
             for item in items:
                 if item.ItemID in item_ids_seen:

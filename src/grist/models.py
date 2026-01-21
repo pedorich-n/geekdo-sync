@@ -50,7 +50,7 @@ class GristItemOutput(GristRecord, GristItemBase):
 class GristPlayerBase(BaseModel):
     Name: str  # Human-readable name (unique key for upsert)
     Username: OptionalNonEmptyStr = None  # GeekDo username
-    UserID: OptionalNonEmptyStr = None  # GeekDo userid
+    UserID: Optional[int] = None  # GeekDo userid
 
 
 class GristPlayerUpsert(GristPlayerBase):
@@ -105,7 +105,7 @@ class GristPlayBase(BaseModel):
     PlayID: int  # GeekDo play id (unique key for upsert)
     Date: date
     Item: GristId  # Reference to Item record
-    Quantity: int
+    Quantity: Optional[int] = None
     Length_Minutes: Optional[int] = None
     Comment: OptionalNonEmptyStr = None
     Location: OptionalNonEmptyStr = None
