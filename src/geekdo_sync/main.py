@@ -28,8 +28,6 @@ def configure_logging(logging_config: LoggingConfig) -> None:
 
 
 def main() -> int:
-    """Run the sync process."""
-
     try:
         config = Config()  # type: ignore[call-arg]
     except Exception as e:

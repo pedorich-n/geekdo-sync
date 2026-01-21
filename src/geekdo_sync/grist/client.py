@@ -2,7 +2,7 @@ import logging
 from typing import List, Optional, Type
 
 from pydantic import PositiveInt
-from pygrister.api import GristApi  # type: ignore[import-untyped]
+from pygrister.api import GristApi
 
 from geekdo_sync.config import GristConfig
 from geekdo_sync.grist.models import (
