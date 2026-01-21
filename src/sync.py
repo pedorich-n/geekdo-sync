@@ -22,28 +22,12 @@ class GristSync:
     """Orchestrates incremental synchronization of GeekDo play data to Grist."""
 
     def __init__(self, bgg_client: BGGClient, bgg_username: str, grist_client: GristClient):
-        """
-        Initialize Grist sync client.
-
-        Args:
-            bgg_client: BGGClient instance for fetching play data from BGG API
-            bgg_username: BGG username to fetch plays for
-            grist_client: GristClient instance for syncing to Grist
-        """
         self.bgg_client = bgg_client
         self.bgg_username = bgg_username
         self.grist_client = grist_client
         self.overlap_detection_limit = 100
 
     def get_recent_plays_from_grist(self) -> Dict[PlayId, GristId]:
-        """
-        Retrieve recent plays from Grist to establish sync point.
-
-        Fetches the most recent plays for overlap detection during incremental sync.
-
-        Returns:
-            Dictionary mapping GeekDo play_id → Grist row ID
-        """
         try:
             plays = self.grist_client.get_plays(
                 sort_by="-Date",
@@ -60,12 +44,6 @@ class GristSync:
             return {}
 
     def get_most_recent_play_date(self) -> Optional[date]:
-        """
-        Get the most recent play date from Grist.
-
-        Returns:
-            Most recent play date, or None if no plays exist
-        """
         try:
             plays = self.grist_client.get_plays(
                 sort_by="-Date",
@@ -152,15 +130,6 @@ class GristSync:
         return new_plays
 
     def prepare_items(self, plays: List[APIPlay]) -> Dict[ItemId, GristItemUpsert]:
-        """
-        Prepare unique items from plays for Grist sync.
-
-        Args:
-            plays: List of API play objects
-
-        Returns:
-            Dictionary mapping item objectid to GristItemInput
-        """
         api_items: Dict[ItemId, APIItem] = extract_unique_items(plays)
 
         items_dict = {
@@ -178,13 +147,8 @@ class GristSync:
 
     def prepare_players(self, plays: List[APIPlay]) -> Dict[str, GristPlayerUpsert]:
         """
-        Prepare unique players from plays for Grist sync.
-
-        Args:
-            plays: List of API play objects
-
         Returns:
-            Dictionary mapping player name to GristPlayerInput
+            Dictionary mapping player name to GristPlayerUpsert.
         """
         api_players = extract_unique_players(plays)
 
@@ -197,16 +161,6 @@ class GristSync:
         return players_dict
 
     def prepare_plays(self, plays: List[APIPlay], items_mapping: Dict[ItemId, GristId]) -> List[GristPlayUpsert]:
-        """
-        Prepare plays with resolved item references.
-
-        Args:
-            plays: List of API play objects
-            items_mapping: Mapping of ItemID (str) to Grist row ID
-
-        Returns:
-            List of GristPlayInput with resolved item references
-        """
         plays_list: List[GristPlayUpsert] = []
 
         for play in plays:
@@ -235,17 +189,6 @@ class GristSync:
         plays_mapping: Dict[PlayId, GristId],
         players_mapping: Dict[str, GristId],
     ) -> List[GristPlayerPlayUpsert]:
-        """
-        Prepare player-play relationships with resolved references.
-
-        Args:
-            plays: List of API play objects
-            plays_mapping: Mapping of PlayID (str) to Grist row ID
-            players_mapping: Mapping of player name (str) to Grist row ID
-
-        Returns:
-            List of GristPlayerPlayInput with resolved references
-        """
         player_plays_list: List[GristPlayerPlayUpsert] = []
 
         for play in plays:
@@ -279,8 +222,6 @@ class GristSync:
 
     def sync_players(self, new_players: Dict[str, GristPlayerUpsert]) -> Dict[str, GristId]:
         """
-        Upsert players to Grist and return mapping of name → Grist row ID.
-
         Args:
             new_players: Players to upsert (by name)
 
@@ -304,8 +245,6 @@ class GristSync:
 
     def sync_items(self, new_items: Dict[ItemId, GristItemUpsert]) -> Dict[ItemId, GristId]:
         """
-        Upsert items to Grist and return mapping of ItemID → Grist row ID.
-
         Args:
             new_items: Items to upsert (by objectid)
 
@@ -333,8 +272,6 @@ class GristSync:
         existing_play_ids: Dict[PlayId, GristId],
     ) -> Dict[PlayId, GristId]:
         """
-        Insert new plays to Grist.
-
         Args:
             plays_list: List of plays with resolved item references
             existing_play_ids: Existing plays mapping (geekdo_play_id → grist_row_id)
@@ -351,13 +288,10 @@ class GristSync:
 
         logger.debug(f"Inserting {len(plays_to_insert)} new plays to Grist")
 
-        # Upsert plays
         self.grist_client.upsert_plays(plays_to_insert)
 
-        # Read back all plays to get complete mapping
         plays = self.grist_client.get_plays(limit=None)
 
-        # Build PlayID → Grist row ID mapping
         plays_mapping: Dict[PlayId, GristId] = {PlayId(play.PlayID): play.id for play in plays}
 
         logger.debug(f"Plays mapping contains {len(plays_mapping)} entries")
@@ -367,23 +301,14 @@ class GristSync:
         self,
         player_plays_list: List[GristPlayerPlayUpsert],
     ) -> None:
-        """
-        Upsert player-play relationships to Grist.
-
-        Args:
-            player_plays_list: List of player-play relationships with resolved references
-        """
         if not player_plays_list:
             logger.debug("No player-plays to sync")
             return
 
         logger.debug(f"Upserting {len(player_plays_list)} player-play relationships to Grist")
 
-        # Upsert player-plays
         self.grist_client.upsert_player_plays(player_plays_list)
         logger.debug(f"Upserted {len(player_plays_list)} player-play relationships")
-
-    # Phase 4: Validation & orchestration
 
     def validate_sync(self) -> bool:
         """
@@ -508,10 +433,6 @@ class GristSync:
 
     def run_sync(self) -> bool:
         """
-        Execute complete sync workflow using iterate-until-overlap strategy.
-
-        Fetches plays from BGG API for the configured username and syncs to Grist.
-
         Returns:
             True if sync completed successfully, False otherwise
         """
@@ -530,7 +451,6 @@ class GristSync:
                 mindate = None
             else:
                 logger.info(f"Found {len(recent_play_ids_set)} recent plays in Grist")
-                # Get most recent date for optimization
                 most_recent_date = self.get_most_recent_play_date()
                 if most_recent_date:
                     # Use 1 day buffer to handle timezone differences and deleted/edited plays

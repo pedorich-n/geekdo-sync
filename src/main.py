@@ -37,7 +37,6 @@ def main() -> int:
         print(f"Error loading configuration: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Configure logging with settings from config
     configure_logging(config.logging)
 
     logger = logging.getLogger(__name__)

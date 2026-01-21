@@ -5,11 +5,6 @@ from .models import APIItem, APIPlay, APIPlayer, ItemId
 
 def extract_unique_items(plays: List[APIPlay]) -> Dict[ItemId, APIItem]:
     """
-    Extract all unique items from plays.
-
-    Args:
-        plays: List of API play objects
-
     Returns:
         Dictionary mapping item objectid to APIItem
     """
@@ -23,11 +18,6 @@ def extract_unique_items(plays: List[APIPlay]) -> Dict[ItemId, APIItem]:
 
 def extract_unique_players(plays: List[APIPlay]) -> Dict[str, APIPlayer]:
     """
-    Extract all unique players from plays.
-
-    Args:
-        plays: List of API play objects
-
     Returns:
         Dictionary mapping player name to APIPlayer.
     """
