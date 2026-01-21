@@ -1,6 +1,6 @@
 from pydantic import ValidationError
 
-from .schemas import APIPlaysResponse
+from .models import APIPlaysResponse
 
 
 def parse_plays_xml(xml_content: str) -> APIPlaysResponse:

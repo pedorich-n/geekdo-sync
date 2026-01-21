@@ -10,7 +10,7 @@ let
 
   python = pkgs.python313;
 
-  workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ../../.; };
+  workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ../.; };
 
   overlay = workspace.mkPyprojectOverlay {
     # Prefer prebuilt binary wheels as a package source.
@@ -35,9 +35,15 @@ let
       inherit python;
     };
   });
+
+  ruff = pythonSet.ruff.overrideAttrs (old: {
+    meta = old.meta or { } // {
+      mainProgram = "ruff";
+    };
+  });
 in
 {
-  inherit venv python;
+  inherit venv python ruff;
 
   geekdo-sync = mkApplication {
     inherit venv;

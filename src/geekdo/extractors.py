@@ -1,19 +1,14 @@
-"""Extract unique entities from API plays."""
+from typing import Dict, List
 
-from .schemas import APIItem, APIPlay, APIPlayer
+from .models import APIItem, APIPlay, APIPlayer, ItemId
 
 
-def extract_unique_items(plays: list[APIPlay]) -> dict[str, APIItem]:
+def extract_unique_items(plays: List[APIPlay]) -> Dict[ItemId, APIItem]:
     """
-    Extract all unique items from plays.
-
-    Args:
-        plays: List of API play objects
-
     Returns:
         Dictionary mapping item objectid to APIItem
     """
-    items: dict[str, APIItem] = {}
+    items: Dict[ItemId, APIItem] = {}
     for play in plays:
         item_id = play.item.objectid
         if item_id not in items:
@@ -21,13 +16,8 @@ def extract_unique_items(plays: list[APIPlay]) -> dict[str, APIItem]:
     return items
 
 
-def extract_unique_players(plays: list[APIPlay]) -> dict[str, APIPlayer]:
+def extract_unique_players(plays: List[APIPlay]) -> Dict[str, APIPlayer]:
     """
-    Extract all unique players from plays.
-
-    Args:
-        plays: List of API play objects
-
     Returns:
         Dictionary mapping player name to APIPlayer.
     """
