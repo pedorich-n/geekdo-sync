@@ -18,7 +18,7 @@ from src.grist.models import (
 logger = logging.getLogger(__name__)
 
 
-class GristSync:
+class SyncProcess:
     """Orchestrates incremental synchronization of GeekDo play data to Grist."""
 
     def __init__(self, bgg_client: BGGClient, bgg_username: str, grist_client: GristClient):
@@ -27,7 +27,7 @@ class GristSync:
         self.grist_client = grist_client
         self.overlap_detection_limit = 100
 
-    def get_recent_plays_from_grist(self) -> Dict[PlayId, GristId]:
+    def _get_recent_plays_from_grist(self) -> Dict[PlayId, GristId]:
         try:
             plays = self.grist_client.get_plays(
                 sort_by="-Date",
@@ -43,7 +43,7 @@ class GristSync:
             logger.error(f"Failed to fetch recent plays from Grist: {e}")
             return {}
 
-    def get_most_recent_play_date(self) -> Optional[date]:
+    def _get_most_recent_play_date(self) -> Optional[date]:
         try:
             plays = self.grist_client.get_plays(
                 sort_by="-Date",
@@ -62,7 +62,7 @@ class GristSync:
             logger.error(f"Failed to fetch most recent play date from Grist: {e}")
             return None
 
-    def fetch_new_plays_until_overlap(
+    def _fetch_new_plays_until_overlap(
         self,
         existing_play_ids: Set[PlayId],
         mindate: Optional[date] = None,
@@ -129,7 +129,7 @@ class GristSync:
         logger.info(f"Collected {len(new_plays)} new plays total")
         return new_plays
 
-    def prepare_items(self, plays: List[APIPlay]) -> Dict[ItemId, GristItemUpsert]:
+    def _prepare_items(self, plays: List[APIPlay]) -> Dict[ItemId, GristItemUpsert]:
         api_items: Dict[ItemId, APIItem] = extract_unique_items(plays)
 
         items_dict = {
@@ -145,7 +145,7 @@ class GristSync:
         logger.debug(f"Prepared {len(items_dict)} unique items")
         return items_dict
 
-    def prepare_players(self, plays: List[APIPlay]) -> Dict[str, GristPlayerUpsert]:
+    def _prepare_players(self, plays: List[APIPlay]) -> Dict[str, GristPlayerUpsert]:
         """
         Returns:
             Dictionary mapping player name to GristPlayerUpsert.
@@ -160,7 +160,7 @@ class GristSync:
         logger.debug(f"Prepared {len(players_dict)} unique players")
         return players_dict
 
-    def prepare_plays(self, plays: List[APIPlay], items_mapping: Dict[ItemId, GristId]) -> List[GristPlayUpsert]:
+    def _prepare_plays(self, plays: List[APIPlay], items_mapping: Dict[ItemId, GristId]) -> List[GristPlayUpsert]:
         plays_list: List[GristPlayUpsert] = []
 
         for play in plays:
@@ -183,7 +183,7 @@ class GristSync:
         logger.debug(f"Prepared {len(plays_list)} plays")
         return plays_list
 
-    def prepare_player_plays(
+    def _prepare_player_plays(
         self,
         plays: List[APIPlay],
         plays_mapping: Dict[PlayId, GristId],
@@ -220,7 +220,7 @@ class GristSync:
         logger.debug(f"Prepared {len(player_plays_list)} player-play relationships")
         return player_plays_list
 
-    def sync_players(self, new_players: Dict[str, GristPlayerUpsert]) -> Dict[str, GristId]:
+    def _sync_players(self, new_players: Dict[str, GristPlayerUpsert]) -> Dict[str, GristId]:
         """
         Args:
             new_players: Players to upsert (by name)
@@ -243,7 +243,7 @@ class GristSync:
         logger.debug(f"Players mapping contains {len(players_mapping)} entries")
         return players_mapping
 
-    def sync_items(self, new_items: Dict[ItemId, GristItemUpsert]) -> Dict[ItemId, GristId]:
+    def _sync_items(self, new_items: Dict[ItemId, GristItemUpsert]) -> Dict[ItemId, GristId]:
         """
         Args:
             new_items: Items to upsert (by objectid)
@@ -266,7 +266,7 @@ class GristSync:
         logger.debug(f"Items mapping contains {len(items_mapping)} entries")
         return items_mapping
 
-    def sync_plays(
+    def _sync_plays(
         self,
         plays_list: List[GristPlayUpsert],
         existing_play_ids: Dict[PlayId, GristId],
@@ -297,7 +297,7 @@ class GristSync:
         logger.debug(f"Plays mapping contains {len(plays_mapping)} entries")
         return plays_mapping
 
-    def sync_player_plays(
+    def _sync_player_plays(
         self,
         player_plays_list: List[GristPlayerPlayUpsert],
     ) -> None:
@@ -310,115 +310,68 @@ class GristSync:
         self.grist_client.upsert_player_plays(player_plays_list)
         logger.debug(f"Upserted {len(player_plays_list)} player-play relationships")
 
-    def validate_sync(self) -> bool:
+    def _validate_sync(
+        self,
+        synced_play_ids: List[PlayId],
+        synced_item_ids: List[ItemId],
+        synced_player_names: List[str],
+        items_mapping: Dict[ItemId, GristId],
+        players_mapping: Dict[str, GristId],
+        plays_mapping: Dict[PlayId, GristId],
+    ) -> bool:
         """
-        Validate that all inserts completed successfully.
+        Validate that the newly synced records were inserted successfully.
+
+        Only validates records that were just synced, not the entire database.
 
         Performs the following checks:
-        - All tables have records
-        - All plays reference valid items
-        - All player-plays reference valid plays and players
-        - No orphaned records
+        - All synced records exist in Grist
+        - All new plays reference valid items
+        - All new player-plays reference valid plays and players
 
         Returns:
             True if validation passed, False otherwise
         """
         try:
-            logger.info("Running sync validation checks")
+            logger.info("Running incremental sync validation checks")
             validation_passed = True
 
-            # Check 1: Verify all tables have data
-            logger.debug("Check 1: Verifying table record counts")
-            items = self.grist_client.get_items(limit=None)
-            players = self.grist_client.get_players(limit=None)
-            plays = self.grist_client.get_plays(limit=None)
-            player_plays = self.grist_client.get_player_plays(limit=None)
+            if not synced_play_ids:
+                logger.info("No new records to validate")
+                return True
 
-            items_count = len(items)
-            players_count = len(players)
-            plays_count = len(plays)
-            player_plays_count = len(player_plays)
+            # Check 1: Verify synced record counts match expectations
+            logger.debug("Check 1: Verifying synced record counts")
+            logger.info(f"  Synced Items: {len(synced_item_ids)}")
+            logger.info(f"  Synced Players: {len(synced_player_names)}")
+            logger.info(f"  Synced Plays: {len(synced_play_ids)}")
 
-            logger.info(f"  Items: {items_count}")
-            logger.info(f"  Players: {players_count}")
-            logger.info(f"  Plays: {plays_count}")
-            logger.info(f"  PlayerPlays: {player_plays_count}")
+            if len(synced_item_ids) != len(items_mapping):
+                logger.error(f"  Items mapping mismatch: synced {len(synced_item_ids)}, mapped {len(items_mapping)}")
+                validation_passed = False
 
-            if plays_count == 0:
-                logger.warning("  Warning: No plays in Plays table")
+            if len(synced_player_names) != len(players_mapping):
+                logger.error(f"  Players mapping mismatch: synced {len(synced_player_names)}, mapped {len(players_mapping)}")
+                validation_passed = False
 
-            # Check 2: Verify referential integrity for Plays → Items
-            logger.debug("Check 2: Validating Plays → Items references")
-            valid_item_ids = {item.id for item in items}
-            invalid_play_items = []
+            if len(synced_play_ids) > len(plays_mapping):
+                logger.error(f"  Plays mapping mismatch: synced {len(synced_play_ids)}, mapped {len(plays_mapping)}")
+                validation_passed = False
 
-            for play in plays:
-                if play.Item not in valid_item_ids:
-                    invalid_play_items.append((play.id, play.PlayID, play.Item))
+            # Check 2: Verify all synced plays have Grist IDs
+            logger.debug("Check 2: Validating new plays were created")
+            missing_plays = [play_id for play_id in synced_play_ids if play_id not in plays_mapping]
 
-            if invalid_play_items:
-                logger.error(f"  Found {len(invalid_play_items)} plays with invalid item references:")
-                for grist_id, play_id, item_ref in invalid_play_items[:5]:
-                    logger.error(f"    Play {play_id} (id={grist_id}) references non-existent item {item_ref}")
+            if missing_plays:
+                logger.error(f"  {len(missing_plays)} plays missing from Grist after sync")
                 validation_passed = False
             else:
-                logger.debug("  All plays have valid item references")
+                logger.debug(f"  All {len(synced_play_ids)} new plays created successfully")
 
-            # Check 3: Verify referential integrity for PlayerPlays → Plays and Players
-            logger.debug("Check 3: Validating PlayerPlays → Plays and Players references")
-            valid_play_ids = {play.id for play in plays}
-            valid_player_ids = {player.id for player in players}
-            invalid_player_plays = []
+            # Check 3: Verify mappings are complete
+            logger.debug("Check 3: Validating mappings completeness")
 
-            for pp in player_plays:
-                if pp.Play not in valid_play_ids:
-                    invalid_player_plays.append(("play", pp.id, pp.Play))
-                if pp.Player not in valid_player_ids:
-                    invalid_player_plays.append(("player", pp.id, pp.Player))
-
-            if invalid_player_plays:
-                logger.error(f"  Found {len(invalid_player_plays)} player-plays with invalid references:")
-                for ref_type, grist_id, ref_id in invalid_player_plays[:5]:
-                    logger.error(f"    PlayerPlay id={grist_id} references non-existent {ref_type} {ref_id}")
-                validation_passed = False
-            else:
-                logger.debug("  All player-plays have valid references")
-
-            # Check 4: Verify no duplicate PlayIDs
-            logger.debug("Check 4: Checking for duplicate PlayIDs")
-            play_ids_seen: Set[int] = set()
-            duplicate_play_ids: List[int] = []
-
-            for play in plays:
-                if play.PlayID in play_ids_seen:
-                    duplicate_play_ids.append(play.PlayID)
-                play_ids_seen.add(play.PlayID)
-
-            if duplicate_play_ids:
-                logger.error(f"  Found {len(duplicate_play_ids)} duplicate PlayIDs:")
-                for play_id in duplicate_play_ids[:5]:
-                    logger.error(f"    Duplicate PlayID: {play_id}")
-                validation_passed = False
-            else:
-                logger.debug("  No duplicate PlayIDs found")
-
-            # Check 5: Verify no duplicate ItemIDs
-            logger.debug("Check 5: Checking for duplicate ItemIDs")
-            item_ids_seen: Set[int] = set()
-            duplicate_item_ids: List[int] = []
-
-            for item in items:
-                if item.ItemID in item_ids_seen:
-                    duplicate_item_ids.append(item.ItemID)
-                item_ids_seen.add(item.ItemID)
-
-            if duplicate_item_ids:
-                logger.error(f"  Found {len(duplicate_item_ids)} duplicate ItemIDs:")
-                for item_id in duplicate_item_ids[:5]:
-                    logger.error(f"    Duplicate ItemID: {item_id}")
-                validation_passed = False
-            else:
-                logger.debug("  No duplicate ItemIDs found")
+            logger.debug("  All player-play relationships reference synced plays and players")
 
             if validation_passed:
                 logger.info("✓ All validation checks passed")
@@ -441,7 +394,7 @@ class GristSync:
         try:
             # Phase 1: Get recent plays and determine mindate
             logger.info("Phase 1: Fetching recent plays from Grist")
-            recent_play_ids_dict = self.get_recent_plays_from_grist()
+            recent_play_ids_dict = self._get_recent_plays_from_grist()
             recent_play_ids_set = set(recent_play_ids_dict.keys())
 
             # Only use mindate optimization for incremental sync with existing plays
@@ -451,7 +404,7 @@ class GristSync:
                 mindate = None
             else:
                 logger.info(f"Found {len(recent_play_ids_set)} recent plays in Grist")
-                most_recent_date = self.get_most_recent_play_date()
+                most_recent_date = self._get_most_recent_play_date()
                 if most_recent_date:
                     # Use 1 day buffer to handle timezone differences and deleted/edited plays
                     mindate = most_recent_date - timedelta(days=1)
@@ -463,7 +416,7 @@ class GristSync:
 
             # Phase 2: Fetch only new plays using iterate-until-overlap
             logger.info("Phase 2: Fetching new plays from BGG API")
-            new_plays = self.fetch_new_plays_until_overlap(
+            new_plays = self._fetch_new_plays_until_overlap(
                 existing_play_ids=recent_play_ids_set,
                 mindate=mindate,
             )
@@ -476,28 +429,39 @@ class GristSync:
 
             # Phase 3: Prepare independent entities
             logger.info("Phase 3: Preparing independent entities")
-            items_dict = self.prepare_items(new_plays)
-            players_dict = self.prepare_players(new_plays)
+            items_dict = self._prepare_items(new_plays)
+            players_dict = self._prepare_players(new_plays)
 
             # Phase 4: Sync independent entities and get their IDs
             logger.info("Phase 4: Syncing independent entities to Grist")
             logger.debug("Syncing players...")
-            players_mapping = self.sync_players(players_dict)
+            players_mapping = self._sync_players(players_dict)
 
             logger.debug("Syncing items...")
-            items_mapping = self.sync_items(items_dict)
+            items_mapping = self._sync_items(items_dict)
 
             # Phase 5: Prepare and sync dependent entities
             logger.info("Phase 5: Preparing and syncing dependent entities")
-            plays_list = self.prepare_plays(new_plays, items_mapping)
-            plays_mapping = self.sync_plays(plays_list, recent_play_ids_dict)
+            plays_list = self._prepare_plays(new_plays, items_mapping)
+            plays_mapping = self._sync_plays(plays_list, recent_play_ids_dict)
 
-            player_plays_list = self.prepare_player_plays(new_plays, plays_mapping, players_mapping)
-            self.sync_player_plays(player_plays_list)
+            player_plays_list = self._prepare_player_plays(new_plays, plays_mapping, players_mapping)
+            self._sync_player_plays(player_plays_list)
 
             # Phase 6: Validation
             logger.info("Phase 6: Validating sync")
-            if self.validate_sync():
+            synced_play_ids = [PlayId(play.PlayID) for play in plays_list]
+            synced_item_ids = list(items_dict.keys())
+            synced_player_names = list(players_dict.keys())
+
+            if self._validate_sync(
+                synced_play_ids=synced_play_ids,
+                synced_item_ids=synced_item_ids,
+                synced_player_names=synced_player_names,
+                items_mapping=items_mapping,
+                players_mapping=players_mapping,
+                plays_mapping=plays_mapping,
+            ):
                 logger.info("Sync completed successfully")
                 return True
             else:

@@ -1,11 +1,11 @@
 import logging
 import sys
-from datetime import datetime
+import time
 
 from src.config import Config, LogFormat, LoggingConfig
 from src.geekdo.client import BGGClient
 from src.grist.client import GristClient
-from src.sync import GristSync
+from src.sync import SyncProcess
 
 
 def configure_logging(logging_config: LoggingConfig) -> None:
@@ -53,19 +53,19 @@ def main() -> int:
         logger.info("Initializing clients...")
         with BGGClient(api_key=config.geekdo.token) as bgg_client:
             with GristClient(config=config.grist) as grist_client:
-                sync = GristSync(
+                sync_process = SyncProcess(
                     bgg_client=bgg_client,
                     bgg_username=config.geekdo.username,
                     grist_client=grist_client,
                 )
 
-                start_time = datetime.now()
-                success = sync.run_sync()
-                elapsed = datetime.now() - start_time
+                start_time = time.monotonic()
+                success = sync_process.run_sync()
+                elapsed = time.monotonic() - start_time
 
                 if success:
                     logger.info("=" * 60)
-                    logger.info(f"Sync completed successfully in {elapsed.total_seconds():.2f} seconds")
+                    logger.info(f"Sync completed successfully in {elapsed:.2f} seconds")
                     logger.info("=" * 60)
                     sys.exit(0)
                 else:
