@@ -4,8 +4,8 @@ from typing import List, Optional, Type
 from pydantic import PositiveInt
 from pygrister.api import GristApi  # type: ignore[import-untyped]
 
-from src.config import GristConfig
-from src.grist.models import (
+from geekdo_sync.config import GristConfig
+from geekdo_sync.grist.models import (
     GristItemOutput,
     GristItemUpsert,
     GristPlayerOutput,
@@ -17,7 +17,7 @@ from src.grist.models import (
     GristRecord,
     GristUpsertRecord,
 )
-from src.utils import OptionalNonEmptyStr
+from geekdo_sync.utils import OptionalNonEmptyStr
 
 
 class GristClient:

@@ -5,7 +5,7 @@ from typing import Any, Dict
 from pydantic import HttpUrl, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from src.utils import NonEmptyStr
+from geekdo_sync.utils import NonEmptyStr
 
 
 class LogFormat(str, Enum):

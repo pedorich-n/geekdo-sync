@@ -1,14 +1,14 @@
 from typing import Dict, List
 
-from .models import APIItem, APIPlay, APIPlayer, ItemId
+from .models import GeekdoItem, GeekdoPlay, GeekdoPlayer, GeekdoItemId
 
 
-def extract_unique_items(plays: List[APIPlay]) -> Dict[ItemId, APIItem]:
+def extract_unique_items(plays: List[GeekdoPlay]) -> Dict[GeekdoItemId, GeekdoItem]:
     """
     Returns:
         Dictionary mapping item objectid to APIItem
     """
-    items: Dict[ItemId, APIItem] = {}
+    items: Dict[GeekdoItemId, GeekdoItem] = {}
     for play in plays:
         item_id = play.item.objectid
         if item_id not in items:
@@ -16,12 +16,12 @@ def extract_unique_items(plays: List[APIPlay]) -> Dict[ItemId, APIItem]:
     return items
 
 
-def extract_unique_players(plays: List[APIPlay]) -> Dict[str, APIPlayer]:
+def extract_unique_players(plays: List[GeekdoPlay]) -> Dict[str, GeekdoPlayer]:
     """
     Returns:
         Dictionary mapping player name to APIPlayer.
     """
-    players: dict[str, APIPlayer] = {}
+    players: dict[str, GeekdoPlayer] = {}
     for play in plays:
         if not play.players:
             continue

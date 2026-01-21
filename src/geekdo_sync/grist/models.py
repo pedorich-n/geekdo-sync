@@ -3,7 +3,7 @@ from typing import Any, NewType, Optional
 
 from pydantic import BaseModel, field_serializer
 
-from src.utils import OptionalNonEmptyStr
+from geekdo_sync.utils import OptionalNonEmptyStr
 
 from .utils import date_to_grist_date
 

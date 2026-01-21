@@ -1,11 +1,11 @@
 from pydantic import ValidationError
 
-from .models import APIPlaysResponse
+from .models import GeekdoPlaysResponse
 
 
-def parse_plays_xml(xml_content: str) -> APIPlaysResponse:
+def parse_plays_xml(xml_content: str) -> GeekdoPlaysResponse:
     try:
-        return APIPlaysResponse.from_xml(xml_content)
+        return GeekdoPlaysResponse.from_xml(xml_content)
     except ValidationError as e:
         raise ValueError(f"Failed to validate plays data: {e}") from e
     except Exception as e:

@@ -2,10 +2,10 @@ import logging
 import sys
 import time
 
-from src.config import Config, LogFormat, LoggingConfig
-from src.geekdo.client import BGGClient
-from src.grist.client import GristClient
-from src.sync import SyncProcess
+from geekdo_sync.config import Config, LogFormat, LoggingConfig
+from geekdo_sync.geekdo.client import BGGClient
+from geekdo_sync.grist.client import GristClient
+from geekdo_sync.sync import SyncProcess
 
 
 def configure_logging(logging_config: LoggingConfig) -> None:
