@@ -1,6 +1,6 @@
 from typing import Dict, List
 
-from .models import GeekdoItem, GeekdoPlay, GeekdoPlayer, GeekdoItemId
+from .models import GeekdoItem, GeekdoItemId, GeekdoPlay, GeekdoPlayer
 
 
 def extract_unique_items(plays: List[GeekdoPlay]) -> Dict[GeekdoItemId, GeekdoItem]:
