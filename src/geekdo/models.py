@@ -52,6 +52,7 @@ def _parse_play_id(val: Any) -> PlayId:
         raise ValueError("PlayId cannot be empty or zero")
     return PlayId(res)
 
+
 def _parse_item_id(val: Any) -> ItemId:
     res = _parse_optional_id(val)
     if res is None:

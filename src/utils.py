@@ -9,6 +9,7 @@ def _empty_str_to_none(v: Any) -> Optional[str]:
         return None
     return v
 
+
 type OptionalFromNonEmptyStr[X] = Annotated[Optional[X], BeforeValidator(_empty_str_to_none)]
 
 type OptionalNonEmptyStr = Annotated[Optional[str], BeforeValidator(_empty_str_to_none)]
