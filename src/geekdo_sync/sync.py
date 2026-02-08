@@ -339,36 +339,38 @@ class SyncProcess:
                 logger.info("No new records to validate")
                 return True
 
-            # Check 1: Verify synced record counts match expectations
-            logger.debug("Check 1: Verifying synced record counts")
+            # Check 1: Verify all synced records exist in mappings
+            logger.debug("Check 1: Verifying synced records exist in mappings")
             logger.info(f"  Synced Items: {len(synced_item_ids)}")
             logger.info(f"  Synced Players: {len(synced_player_names)}")
             logger.info(f"  Synced Plays: {len(synced_play_ids)}")
 
-            if len(synced_item_ids) != len(items_mapping):
-                logger.error(f"  Items mapping mismatch: synced {len(synced_item_ids)}, mapped {len(items_mapping)}")
-                validation_passed = False
-
-            if len(synced_player_names) != len(players_mapping):
-                logger.error(f"  Players mapping mismatch: synced {len(synced_player_names)}, mapped {len(players_mapping)}")
-                validation_passed = False
-
-            if len(synced_play_ids) > len(plays_mapping):
-                logger.error(f"  Plays mapping mismatch: synced {len(synced_play_ids)}, mapped {len(plays_mapping)}")
-                validation_passed = False
-
-            # Check 2: Verify all synced plays have Grist IDs
-            logger.debug("Check 2: Validating new plays were created")
-            missing_plays = [play_id for play_id in synced_play_ids if play_id not in plays_mapping]
-
-            if missing_plays:
-                logger.error(f"  {len(missing_plays)} plays missing from Grist after sync")
+            # Verify all synced items exist in the mapping (subset check)
+            missing_items = [item_id for item_id in synced_item_ids if item_id not in items_mapping]
+            if missing_items:
+                logger.error(f"  {len(missing_items)} items missing from Grist after sync")
                 validation_passed = False
             else:
-                logger.debug(f"  All {len(synced_play_ids)} new plays created successfully")
+                logger.debug(f"  All {len(synced_item_ids)} new items found in mapping")
 
-            # Check 3: Verify mappings are complete
-            logger.debug("Check 3: Validating mappings completeness")
+            # Verify all synced players exist in the mapping (subset check)
+            missing_players = [name for name in synced_player_names if name not in players_mapping]
+            if missing_players:
+                logger.error(f"  {len(missing_players)} players missing from Grist after sync")
+                validation_passed = False
+            else:
+                logger.debug(f"  All {len(synced_player_names)} new players found in mapping")
+
+            # Verify all synced plays exist in the mapping (subset check)
+            missing_plays_initial = [play_id for play_id in synced_play_ids if play_id not in plays_mapping]
+            if missing_plays_initial:
+                logger.error(f"  {len(missing_plays_initial)} plays missing from Grist after sync")
+                validation_passed = False
+            else:
+                logger.debug(f"  All {len(synced_play_ids)} new plays found in mapping")
+
+            # Check 2: Verify mappings are complete
+            logger.debug("Check 2: Validating mappings completeness")
 
             logger.debug("  All player-play relationships reference synced plays and players")
 

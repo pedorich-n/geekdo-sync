@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Any, NewType, Optional
 
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel
 
 from geekdo_sync.utils import OptionalNonEmptyStr
 
@@ -112,15 +112,11 @@ class GristPlayBase(BaseModel):
 
 
 class GristPlayUpsert(GristPlayBase):
-    @field_serializer("Date")
-    def serialize_Date(self, value: date) -> int:
-        return date_to_grist_date(value)
-
     def to_upsert_record(self) -> GristUpsertRecord:
         return GristUpsertRecord(
             require={"PlayID": self.PlayID},
             fields={
-                "Date": self.Date,
+                "Date": date_to_grist_date(self.Date),
                 "Item": self.Item,
                 "Quantity": self.Quantity,
                 "Length_Minutes": self.Length_Minutes,
