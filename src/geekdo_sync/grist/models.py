@@ -71,6 +71,7 @@ class GristPlayerOutput(GristRecord, GristPlayerBase):
 class GristPlayerPlayBase(BaseModel):
     Play: GristId  # Reference to Play record
     Player: GristId  # Reference to Player record
+    PlayerSequence: int  # Position of player in play's player list (0-based)
     StartPosition: OptionalNonEmptyStr = None
     Color: OptionalNonEmptyStr = None
     Score: Optional[int] = None
@@ -85,6 +86,7 @@ class GristPlayerPlayUpsert(GristPlayerPlayBase):
             require={
                 "Play": self.Play,
                 "Player": self.Player,
+                "PlayerSequence": self.PlayerSequence,
             },
             fields={
                 "StartPosition": self.StartPosition,

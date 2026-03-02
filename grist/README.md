@@ -28,6 +28,7 @@ erDiagram
     PlayerPlays {
         ref Play
         ref Player
+        int PlayerSequence
         string StartPosition
         string Color
         int Score

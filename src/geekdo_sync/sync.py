@@ -199,7 +199,7 @@ class SyncProcess:
             if not play.players:
                 continue
 
-            for player in play.players.player:
+            for player_index, player in enumerate(play.players.player):
                 if player.name not in players_mapping:
                     logger.warning(f"Player '{player.name}' not found in players_mapping for play {play_id}")
                     continue
@@ -207,6 +207,7 @@ class SyncProcess:
                 player_play = GristPlayerPlayUpsert(
                     Play=plays_mapping[play_id],
                     Player=players_mapping[player.name],
+                    PlayerSequence=player_index,
                     StartPosition=player.startposition,
                     Color=player.color,
                     Score=player.score,
