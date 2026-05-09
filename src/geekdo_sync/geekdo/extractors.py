@@ -29,3 +29,17 @@ def extract_unique_players(plays: List[GeekdoPlay]) -> Dict[str, GeekdoPlayer]:
             if player.name not in players:
                 players[player.name] = player
     return players
+
+
+def extract_unique_locations(plays: List[GeekdoPlay]) -> List[str]:
+    """
+    Returns:
+        Deduplicated list of non-None location strings across all plays.
+    """
+    seen: set[str] = set()
+    locations: List[str] = []
+    for play in plays:
+        if play.location and play.location not in seen:
+            seen.add(play.location)
+            locations.append(play.location)
+    return locations
