@@ -103,6 +103,22 @@ class GristPlayerPlayOutput(GristRecord, GristPlayerPlayBase):
     pass
 
 
+class GristLocationBase(BaseModel):
+    Name: str  # Location name (unique key for upsert)
+
+
+class GristLocationUpsert(GristLocationBase):
+    def to_upsert_record(self) -> GristUpsertRecord:
+        return GristUpsertRecord(
+            require={"Name": self.Name},
+            fields={},
+        )
+
+
+class GristLocationOutput(GristRecord, GristLocationBase):
+    pass
+
+
 class GristPlayBase(BaseModel):
     PlayID: int  # GeekDo play id (unique key for upsert)
     Date: date
@@ -110,7 +126,7 @@ class GristPlayBase(BaseModel):
     Quantity: Optional[int] = None
     Length_Minutes: Optional[int] = None
     Comment: OptionalNonEmptyStr = None
-    Location: OptionalNonEmptyStr = None
+    Location: Optional[GristId] = None  # Reference to Location record
 
 
 class GristPlayUpsert(GristPlayBase):

@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Set
 
 from .models import GeekdoItem, GeekdoItemId, GeekdoPlay, GeekdoPlayer
 
@@ -29,3 +29,11 @@ def extract_unique_players(plays: List[GeekdoPlay]) -> Dict[str, GeekdoPlayer]:
             if player.name not in players:
                 players[player.name] = player
     return players
+
+
+def extract_unique_locations(plays: List[GeekdoPlay]) -> Set[str]:
+    """
+    Returns:
+        Deduplicated set of non-None location strings across all plays.
+    """
+    return {play.location for play in plays if play.location}

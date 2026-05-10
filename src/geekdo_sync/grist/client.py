@@ -8,6 +8,8 @@ from geekdo_sync.config import GristConfig
 from geekdo_sync.grist.models import (
     GristItemOutput,
     GristItemUpsert,
+    GristLocationOutput,
+    GristLocationUpsert,
     GristPlayerOutput,
     GristPlayerPlayOutput,
     GristPlayerPlayUpsert,
@@ -26,6 +28,7 @@ class GristClient:
         self.api = GristApi(config=config.get_pygrister_config())
 
         self.items_table_id = "Items"
+        self.locations_table_id = "Locations"
         self.players_table_id = "Players"
         self.plays_table_id = "Plays"
         self.player_plays_table_id = "PlayerPlays"
@@ -85,12 +88,19 @@ class GristClient:
     def get_items(self, sort_by: OptionalNonEmptyStr = None, limit: Optional[PositiveInt] = 100) -> List[GristItemOutput]:
         return self._fetch_records(self.items_table_id, GristItemOutput, "items", sort_by, limit)
 
+    def get_locations(self, sort_by: OptionalNonEmptyStr = None, limit: Optional[PositiveInt] = 100) -> List[GristLocationOutput]:
+        return self._fetch_records(self.locations_table_id, GristLocationOutput, "locations", sort_by, limit)
+
     def get_player_plays(self, sort_by: OptionalNonEmptyStr = None, limit: Optional[PositiveInt] = 100) -> List[GristPlayerPlayOutput]:
         return self._fetch_records(self.player_plays_table_id, GristPlayerPlayOutput, "player plays", sort_by, limit)
 
     def upsert_items(self, items: List[GristItemUpsert]) -> None:
         upsert_records = [item.to_upsert_record() for item in items]
         self._upsert_records(self.items_table_id, upsert_records, "items")
+
+    def upsert_locations(self, locations: List[GristLocationUpsert]) -> None:
+        upsert_records = [location.to_upsert_record() for location in locations]
+        self._upsert_records(self.locations_table_id, upsert_records, "locations")
 
     def upsert_players(self, players: List[GristPlayerUpsert]) -> None:
         upsert_records = [player.to_upsert_record() for player in players]

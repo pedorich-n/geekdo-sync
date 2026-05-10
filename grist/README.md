@@ -15,13 +15,17 @@ erDiagram
         string Name
     }
 
+    Locations {
+        string Name
+    }
+
     Plays {
         int PlayID
         ref Item
         date Date
         int Quantity
         int Length_Minutes
-        string Location
+        ref Location
         string Comment
     }
 
@@ -38,6 +42,7 @@ erDiagram
     }
 
     Items ||--o{ Plays : "has"
+    Locations ||--o{ Plays : "has"
     Plays ||--o{ PlayerPlays : "has"
     Players ||--o{ PlayerPlays : "has"
 ```
