@@ -5,3 +5,6 @@ clean-venv:
 
 sync:
     uv sync --all-extras
+
+run:
+    uv run geekdo-sync

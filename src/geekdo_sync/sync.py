@@ -4,11 +4,12 @@ from datetime import date, timedelta
 from typing import Dict, List, Optional, Set
 
 from geekdo_sync.geekdo import BGGClient, GeekdoItem, GeekdoItemId, GeekdoPlay, GeekdoPlayId
-from geekdo_sync.geekdo.extractors import extract_unique_items, extract_unique_players
+from geekdo_sync.geekdo.extractors import extract_unique_items, extract_unique_locations, extract_unique_players
 from geekdo_sync.grist import (
     GristClient,
     GristId,
     GristItemUpsert,
+    GristLocationUpsert,
     GristPlayerPlayUpsert,
     GristPlayerUpsert,
     GristPlayUpsert,
@@ -159,7 +160,16 @@ class SyncProcess:
         logger.debug(f"Prepared {len(players_dict)} unique players")
         return players_dict
 
-    def _prepare_plays(self, plays: List[GeekdoPlay], items_mapping: Dict[GeekdoItemId, GristId]) -> List[GristPlayUpsert]:
+    def _prepare_locations(self, plays: List[GeekdoPlay]) -> Dict[str, GristLocationUpsert]:
+        locations_dict = {
+            name: GristLocationUpsert(Name=name)
+            for name in extract_unique_locations(plays)
+        }
+
+        logger.debug(f"Prepared {len(locations_dict)} unique locations")
+        return locations_dict
+
+    def _prepare_plays(self, plays: List[GeekdoPlay], items_mapping: Dict[GeekdoItemId, GristId], locations_mapping: Dict[str, GristId]) -> List[GristPlayUpsert]:
         plays_list: List[GristPlayUpsert] = []
 
         for play in plays:
@@ -175,7 +185,7 @@ class SyncProcess:
                 Quantity=play.quantity,
                 Length_Minutes=play.length,
                 Comment=play.comments,
-                Location=play.location,
+                Location=locations_mapping.get(play.location),
             )
             plays_list.append(play_input)
 
@@ -266,6 +276,26 @@ class SyncProcess:
         logger.debug(f"Items mapping contains {len(items_mapping)} entries")
         return items_mapping
 
+    def _sync_locations(self, new_locations: Dict[str, GristLocationUpsert]) -> Dict[str, GristId]:
+        """
+        Returns:
+            Complete locations mapping (name → grist_row_id) after upsert
+        """
+        if not new_locations:
+            logger.debug("No locations to sync")
+            return {}
+
+        logger.debug(f"Upserting {len(new_locations)} locations to Grist")
+
+        self.grist_client.upsert_locations(list(new_locations.values()))
+
+        locations = self.grist_client.get_locations(limit=None)
+
+        locations_mapping: Dict[str, GristId] = {location.Name: location.id for location in locations}
+
+        logger.debug(f"Locations mapping contains {len(locations_mapping)} entries")
+        return locations_mapping
+
     def _sync_plays(
         self,
         plays_list: List[GristPlayUpsert],
@@ -315,9 +345,11 @@ class SyncProcess:
         synced_play_ids: List[GeekdoPlayId],
         synced_item_ids: List[GeekdoItemId],
         synced_player_names: List[str],
+        synced_location_names: List[str],
         items_mapping: Dict[GeekdoItemId, GristId],
         players_mapping: Dict[str, GristId],
         plays_mapping: Dict[GeekdoPlayId, GristId],
+        locations_mapping: Dict[str, GristId],
     ) -> bool:
         """
         Validate that the newly synced records were inserted successfully.
@@ -343,6 +375,7 @@ class SyncProcess:
             # Check 1: Verify all synced records exist in mappings
             logger.debug("Check 1: Verifying synced records exist in mappings")
             logger.info(f"  Synced Items: {len(synced_item_ids)}")
+            logger.info(f"  Synced Locations: {len(synced_location_names)}")
             logger.info(f"  Synced Players: {len(synced_player_names)}")
             logger.info(f"  Synced Plays: {len(synced_play_ids)}")
 
@@ -353,6 +386,14 @@ class SyncProcess:
                 validation_passed = False
             else:
                 logger.debug(f"  All {len(synced_item_ids)} new items found in mapping")
+
+            # Verify all synced locations exist in the mapping (subset check)
+            missing_locations = [name for name in synced_location_names if name not in locations_mapping]
+            if missing_locations:
+                logger.error(f"  {len(missing_locations)} locations missing from Grist after sync")
+                validation_passed = False
+            else:
+                logger.debug(f"  All {len(synced_location_names)} new locations found in mapping")
 
             # Verify all synced players exist in the mapping (subset check)
             missing_players = [name for name in synced_player_names if name not in players_mapping]
@@ -432,10 +473,14 @@ class SyncProcess:
             # Phase 3: Prepare independent entities
             logger.info("Phase 3: Preparing independent entities")
             items_dict = self._prepare_items(new_plays)
+            locations_dict = self._prepare_locations(new_plays)
             players_dict = self._prepare_players(new_plays)
 
             # Phase 4: Sync independent entities and get their IDs
             logger.info("Phase 4: Syncing independent entities to Grist")
+            logger.debug("Syncing locations...")
+            locations_mapping = self._sync_locations(locations_dict)
+
             logger.debug("Syncing players...")
             players_mapping = self._sync_players(players_dict)
 
@@ -444,7 +489,7 @@ class SyncProcess:
 
             # Phase 5: Prepare and sync dependent entities
             logger.info("Phase 5: Preparing and syncing dependent entities")
-            plays_list = self._prepare_plays(new_plays, items_mapping)
+            plays_list = self._prepare_plays(new_plays, items_mapping, locations_mapping)
             plays_mapping = self._sync_plays(plays_list, recent_play_ids_dict)
 
             player_plays_list = self._prepare_player_plays(new_plays, plays_mapping, players_mapping)
@@ -454,15 +499,18 @@ class SyncProcess:
             logger.info("Phase 6: Validating sync")
             synced_play_ids = [GeekdoPlayId(play.PlayID) for play in plays_list]
             synced_item_ids = list(items_dict.keys())
+            synced_location_names = list(locations_dict.keys())
             synced_player_names = list(players_dict.keys())
 
             if self._validate_sync(
                 synced_play_ids=synced_play_ids,
                 synced_item_ids=synced_item_ids,
                 synced_player_names=synced_player_names,
+                synced_location_names=synced_location_names,
                 items_mapping=items_mapping,
                 players_mapping=players_mapping,
                 plays_mapping=plays_mapping,
+                locations_mapping=locations_mapping,
             ):
                 logger.info("Sync completed successfully")
                 return True
