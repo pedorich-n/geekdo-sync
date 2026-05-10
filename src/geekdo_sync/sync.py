@@ -161,9 +161,10 @@ class SyncProcess:
         return players_dict
 
     def _prepare_locations(self, plays: List[GeekdoPlay]) -> Dict[str, GristLocationUpsert]:
+        unique_locations = extract_unique_locations(plays)
         locations_dict = {
             name: GristLocationUpsert(Name=name)
-            for name in extract_unique_locations(plays)
+            for name in unique_locations
         }
 
         logger.debug(f"Prepared {len(locations_dict)} unique locations")
