@@ -162,15 +162,14 @@ class SyncProcess:
 
     def _prepare_locations(self, plays: List[GeekdoPlay]) -> Dict[str, GristLocationUpsert]:
         unique_locations = extract_unique_locations(plays)
-        locations_dict = {
-            name: GristLocationUpsert(Name=name)
-            for name in unique_locations
-        }
+        locations_dict = {name: GristLocationUpsert(Name=name) for name in unique_locations}
 
         logger.debug(f"Prepared {len(locations_dict)} unique locations")
         return locations_dict
 
-    def _prepare_plays(self, plays: List[GeekdoPlay], items_mapping: Dict[GeekdoItemId, GristId], locations_mapping: Dict[str, GristId]) -> List[GristPlayUpsert]:
+    def _prepare_plays(
+        self, plays: List[GeekdoPlay], items_mapping: Dict[GeekdoItemId, GristId], locations_mapping: Dict[str, GristId]
+    ) -> List[GristPlayUpsert]:
         plays_list: List[GristPlayUpsert] = []
 
         for play in plays:
