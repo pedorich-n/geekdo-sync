@@ -43,9 +43,10 @@ class GeekdoConfig(BaseSettings):
 
 
 class GristConfig(BaseSettings):
-    # See https://pygrister.readthedocs.io/en/latest/conf.html#configuration-keys
-    model_config = SettingsConfigDict(extra="ignore")
+    # By default Pydantic adds a trailing slash to URLs, `url_preserve_empty_path` prevents this
+    model_config = SettingsConfigDict(extra="ignore", url_preserve_empty_path=True)
 
+    # See https://pygrister.readthedocs.io/en/latest/conf.html#configuration-keys
     token: SecretStr
     base_url: HttpUrl
     doc_id: NonEmptyStr
