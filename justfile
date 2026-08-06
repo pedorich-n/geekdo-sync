@@ -1,7 +1,7 @@
 import 'dev/justfile.default'
 
 clean-venv:
-    rm -rf {{ join(justfile_directory(), ".venv") }}
+    uv venv --clear
 
 sync:
     uv sync --all-extras
