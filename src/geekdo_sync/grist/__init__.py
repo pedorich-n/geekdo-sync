@@ -16,19 +16,18 @@ from .models import (
 )
 
 __all__ = [
-    # Client
     "GristClient",
+    "GristId",
+    "GristItemOutput",
+    "GristItemUpsert",
+    "GristLocationOutput",
+    "GristLocationUpsert",
+    "GristPlayOutput",
+    "GristPlayUpsert",
+    "GristPlayerOutput",
+    "GristPlayerPlayOutput",
+    "GristPlayerPlayUpsert",
+    "GristPlayerUpsert",
     "GristRecord",
     "GristUpsertRecord",
-    "GristItemUpsert",
-    "GristItemOutput",
-    "GristLocationUpsert",
-    "GristLocationOutput",
-    "GristPlayerUpsert",
-    "GristPlayerOutput",
-    "GristPlayUpsert",
-    "GristPlayOutput",
-    "GristPlayerPlayUpsert",
-    "GristPlayerPlayOutput",
-    "GristId",
 ]

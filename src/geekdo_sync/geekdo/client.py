@@ -1,6 +1,6 @@
 import logging
 from datetime import date
-from typing import Optional
+from typing import Self
 
 import requests
 from pydantic import SecretStr
@@ -25,8 +25,8 @@ class BGGClient:
         self,
         username: str,
         page: int = 1,
-        mindate: Optional[date] = None,
-        maxdate: Optional[date] = None,
+        mindate: date | None = None,
+        maxdate: date | None = None,
     ) -> GeekdoPlaysResponse:
         url = f"{BGG_API_BASE_URL}/plays"
         params: dict[str, str] = {
@@ -45,18 +45,18 @@ class BGGClient:
             response = self.session.get(url, params=params, timeout=self.timeout)
             response.raise_for_status()
         except requests.RequestException as e:
-            logger.error(f"Failed to fetch plays from BGG API: {e}")
+            logger.exception("Failed to fetch plays from BGG API")
             raise ValueError(f"Failed to fetch plays from BGG API: {e}") from e
 
         try:
             parsed_response = parse_plays_xml(response.text)
             logger.debug(f"Successfully parsed {len(parsed_response.play)} plays from page {page}")
             return parsed_response
-        except ValueError as e:
-            logger.error(f"Failed to parse BGG API response: {e}")
+        except ValueError:
+            logger.exception("Failed to parse BGG API response")
             raise
 
-    def __enter__(self) -> "BGGClient":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:

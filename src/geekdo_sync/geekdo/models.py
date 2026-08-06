@@ -1,5 +1,5 @@
 from datetime import date as Date
-from typing import Annotated, Any, List, NewType, Optional
+from typing import Annotated, Any, NewType
 
 from pydantic import BeforeValidator, ConfigDict, computed_field
 from pydantic_xml import BaseXmlModel, attr, element
@@ -16,7 +16,7 @@ GeekdoItemId = NewType("GeekdoItemId", int)
 """Type alias for BoardGameGeek item IDs. To distinguish from other integers"""
 
 
-def _parse_optional_id(val: Any) -> Optional[int]:
+def _parse_optional_id(val: Any) -> int | None:
     if isinstance(val, str):
         val = val.strip()
         if val == "" or val == "0":
@@ -32,7 +32,7 @@ def _parse_optional_id(val: Any) -> Optional[int]:
     return None
 
 
-def _parse_optional_user_id(val: Any) -> Optional[GeekdoUserId]:
+def _parse_optional_user_id(val: Any) -> GeekdoUserId | None:
     res = _parse_optional_id(val)
     if res is None:
         return None
@@ -65,7 +65,7 @@ class GeekdoSubtype(BaseXmlModel, tag="subtype"):
 
 
 class GeekdoSubtypes(BaseXmlModel, tag="subtypes"):
-    subtype: List[GeekdoSubtype] = element(default_factory=list)
+    subtype: list[GeekdoSubtype] = element(default_factory=list)
 
 
 class GeekdoItem(BaseXmlModel, tag="item"):
@@ -84,7 +84,7 @@ class GeekdoItem(BaseXmlModel, tag="item"):
 
 class GeekdoPlayer(BaseXmlModel, tag="player"):
     username: OptionalNonEmptyStr = attr(default=None)
-    userid: Annotated[Optional[GeekdoUserId], BeforeValidator(_parse_optional_user_id)] = attr(default=None)
+    userid: Annotated[GeekdoUserId | None, BeforeValidator(_parse_optional_user_id)] = attr(default=None)
     name: NonEmptyStr = attr()
     startposition: OptionalNonEmptyStr = attr(default=None)
     color: OptionalNonEmptyStr = attr(default=None)
@@ -97,7 +97,7 @@ class GeekdoPlayer(BaseXmlModel, tag="player"):
 class GeekdoPlayers(BaseXmlModel, tag="players"):
     model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
 
-    player: List[GeekdoPlayer] = element(default_factory=list)
+    player: list[GeekdoPlayer] = element(default_factory=list)
 
 
 class GeekdoPlay(BaseXmlModel, tag="play"):
@@ -112,7 +112,7 @@ class GeekdoPlay(BaseXmlModel, tag="play"):
     location: OptionalNonEmptyStr = attr(default=None)
     item: GeekdoItem = element()
     comments: OptionalNonEmptyStr = element(default=None)
-    players: Optional[GeekdoPlayers] = element(default=None)
+    players: GeekdoPlayers | None = element(default=None)
 
 
 class GeekdoPlaysResponse(BaseXmlModel, tag="plays"):
@@ -122,4 +122,4 @@ class GeekdoPlaysResponse(BaseXmlModel, tag="plays"):
     userid: Annotated[GeekdoUserId, BeforeValidator(_parse_user_id)] = attr()
     total: int = attr()
     page: int = attr()
-    play: List[GeekdoPlay] = element(default_factory=list)
+    play: list[GeekdoPlay] = element(default_factory=list)

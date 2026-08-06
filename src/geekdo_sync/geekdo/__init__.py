@@ -13,18 +13,15 @@ from .models import (
 )
 
 __all__ = [
-    # Client
     "BGGClient",
-    # Models
-    "GeekdoPlaysResponse",
-    "GeekdoPlay",
     "GeekdoItem",
+    "GeekdoItemId",
+    "GeekdoPlay",
+    "GeekdoPlayId",
+    "GeekdoPlayer",
+    "GeekdoPlayers",
+    "GeekdoPlaysResponse",
     "GeekdoSubtype",
     "GeekdoSubtypes",
-    "GeekdoPlayers",
-    "GeekdoPlayer",
-    # Type aliases
     "GeekdoUserId",
-    "GeekdoPlayId",
-    "GeekdoItemId",
 ]

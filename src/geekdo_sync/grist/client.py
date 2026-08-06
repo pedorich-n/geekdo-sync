@@ -1,6 +1,6 @@
 import logging
-from typing import List, Optional, Type
 
+import requests
 from pydantic import PositiveInt
 from pygrister.api import GristApi
 
@@ -43,11 +43,11 @@ class GristClient:
     def _fetch_records[R: GristRecord](
         self,
         table_id: str,
-        model_class: Type[R],
+        model_class: type[R],
         entity_name: str,
         sort_by: OptionalNonEmptyStr,
-        limit: Optional[PositiveInt],
-    ) -> List[R]:
+        limit: PositiveInt | None,
+    ) -> list[R]:
         try:
             _, records_result = self.api.list_records(
                 table_id=table_id,
@@ -60,14 +60,14 @@ class GristClient:
 
             return decoded
 
-        except Exception as e:
-            self.logger.error(f"Failed to fetch {entity_name} from Grist: {e}", exc_info=True)
+        except requests.RequestException:
+            self.logger.exception(f"Failed to fetch {entity_name} from Grist")
             return []
 
     def _upsert_records[R: GristUpsertRecord](
         self,
         table_id: str,
-        records: List[R],
+        records: list[R],
         entity_name: str,
     ) -> None:
         try:
@@ -76,40 +76,40 @@ class GristClient:
 
             self.logger.debug(f"Upserted {len(records)} {entity_name} to Grist")
 
-        except Exception as e:
-            self.logger.error(f"Failed to upsert {entity_name} to Grist: {e}", exc_info=True)
+        except requests.RequestException:
+            self.logger.exception(f"Failed to upsert {entity_name} to Grist")
 
-    def get_plays(self, sort_by: OptionalNonEmptyStr = "-Date", limit: Optional[PositiveInt] = 100) -> List[GristPlayOutput]:
+    def get_plays(self, sort_by: OptionalNonEmptyStr = "-Date", limit: PositiveInt | None = 100) -> list[GristPlayOutput]:
         return self._fetch_records(self.plays_table_id, GristPlayOutput, "plays", sort_by, limit)
 
-    def get_players(self, sort_by: OptionalNonEmptyStr = None, limit: Optional[PositiveInt] = 100) -> List[GristPlayerOutput]:
+    def get_players(self, sort_by: OptionalNonEmptyStr = None, limit: PositiveInt | None = 100) -> list[GristPlayerOutput]:
         return self._fetch_records(self.players_table_id, GristPlayerOutput, "players", sort_by, limit)
 
-    def get_items(self, sort_by: OptionalNonEmptyStr = None, limit: Optional[PositiveInt] = 100) -> List[GristItemOutput]:
+    def get_items(self, sort_by: OptionalNonEmptyStr = None, limit: PositiveInt | None = 100) -> list[GristItemOutput]:
         return self._fetch_records(self.items_table_id, GristItemOutput, "items", sort_by, limit)
 
-    def get_locations(self, sort_by: OptionalNonEmptyStr = None, limit: Optional[PositiveInt] = 100) -> List[GristLocationOutput]:
+    def get_locations(self, sort_by: OptionalNonEmptyStr = None, limit: PositiveInt | None = 100) -> list[GristLocationOutput]:
         return self._fetch_records(self.locations_table_id, GristLocationOutput, "locations", sort_by, limit)
 
-    def get_player_plays(self, sort_by: OptionalNonEmptyStr = None, limit: Optional[PositiveInt] = 100) -> List[GristPlayerPlayOutput]:
+    def get_player_plays(self, sort_by: OptionalNonEmptyStr = None, limit: PositiveInt | None = 100) -> list[GristPlayerPlayOutput]:
         return self._fetch_records(self.player_plays_table_id, GristPlayerPlayOutput, "player plays", sort_by, limit)
 
-    def upsert_items(self, items: List[GristItemUpsert]) -> None:
+    def upsert_items(self, items: list[GristItemUpsert]) -> None:
         upsert_records = [item.to_upsert_record() for item in items]
         self._upsert_records(self.items_table_id, upsert_records, "items")
 
-    def upsert_locations(self, locations: List[GristLocationUpsert]) -> None:
+    def upsert_locations(self, locations: list[GristLocationUpsert]) -> None:
         upsert_records = [location.to_upsert_record() for location in locations]
         self._upsert_records(self.locations_table_id, upsert_records, "locations")
 
-    def upsert_players(self, players: List[GristPlayerUpsert]) -> None:
+    def upsert_players(self, players: list[GristPlayerUpsert]) -> None:
         upsert_records = [player.to_upsert_record() for player in players]
         self._upsert_records(self.players_table_id, upsert_records, "players")
 
-    def upsert_plays(self, plays: List[GristPlayUpsert]) -> None:
+    def upsert_plays(self, plays: list[GristPlayUpsert]) -> None:
         upsert_records = [play.to_upsert_record() for play in plays]
         self._upsert_records(self.plays_table_id, upsert_records, "plays")
 
-    def upsert_player_plays(self, player_plays: List[GristPlayerPlayUpsert]) -> None:
+    def upsert_player_plays(self, player_plays: list[GristPlayerPlayUpsert]) -> None:
         upsert_records = [player_play.to_upsert_record() for player_play in player_plays]
         self._upsert_records(self.player_plays_table_id, upsert_records, "player plays")

@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Any, NewType, Optional
+from typing import Any, NewType
 
 from pydantic import BaseModel
 
@@ -50,7 +50,7 @@ class GristItemOutput(GristRecord, GristItemBase):
 class GristPlayerBase(BaseModel):
     Name: str  # Human-readable name (unique key for upsert)
     Username: OptionalNonEmptyStr = None  # GeekDo username
-    UserID: Optional[int] = None  # GeekDo userid
+    UserID: int | None = None  # GeekDo userid
 
 
 class GristPlayerUpsert(GristPlayerBase):
@@ -74,10 +74,10 @@ class GristPlayerPlayBase(BaseModel):
     PlayerSequence: int  # Position of player in play's player list (0-based)
     StartPosition: OptionalNonEmptyStr = None
     Color: OptionalNonEmptyStr = None
-    Score: Optional[int] = None
-    Rating: Optional[int] = None
-    New: Optional[bool] = None
-    Win: Optional[bool] = None
+    Score: int | None = None
+    Rating: int | None = None
+    New: bool | None = None
+    Win: bool | None = None
 
 
 class GristPlayerPlayUpsert(GristPlayerPlayBase):
@@ -123,10 +123,10 @@ class GristPlayBase(BaseModel):
     PlayID: int  # GeekDo play id (unique key for upsert)
     Date: date
     Item: GristId  # Reference to Item record
-    Quantity: Optional[int] = None
-    Length_Minutes: Optional[int] = None
+    Quantity: int | None = None
+    Length_Minutes: int | None = None
     Comment: OptionalNonEmptyStr = None
-    Location: Optional[GristId] = None  # Reference to Location record
+    Location: GristId | None = None  # Reference to Location record
 
 
 class GristPlayUpsert(GristPlayBase):
