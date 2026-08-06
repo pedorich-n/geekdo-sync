@@ -15,3 +15,5 @@ wheels/
 
 # Nix
 result
+
+.pre-commit-config.yaml

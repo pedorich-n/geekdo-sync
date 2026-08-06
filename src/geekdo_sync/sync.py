@@ -1,7 +1,8 @@
 import logging
 import time
 from datetime import date, timedelta
-from typing import Dict, List, Optional, Set
+
+import requests
 
 from geekdo_sync.geekdo import BGGClient, GeekdoItem, GeekdoItemId, GeekdoPlay, GeekdoPlayId
 from geekdo_sync.geekdo.extractors import extract_unique_items, extract_unique_locations, extract_unique_players
@@ -27,23 +28,23 @@ class SyncProcess:
         self.grist_client = grist_client
         self.overlap_detection_limit = 100
 
-    def _get_recent_plays_from_grist(self) -> Dict[GeekdoPlayId, GristId]:
+    def _get_recent_plays_from_grist(self) -> dict[GeekdoPlayId, GristId]:
         try:
             plays = self.grist_client.get_plays(
                 sort_by="-Date",
                 limit=self.overlap_detection_limit,
             )
 
-            play_id_mapping: Dict[GeekdoPlayId, GristId] = {GeekdoPlayId(play.PlayID): play.id for play in plays}
+            play_id_mapping: dict[GeekdoPlayId, GristId] = {GeekdoPlayId(play.PlayID): play.id for play in plays}
 
             logger.info(f"Retrieved {len(play_id_mapping)} recent plays for overlap detection")
             return play_id_mapping
 
-        except Exception as e:
-            logger.error(f"Failed to fetch recent plays from Grist: {e}")
+        except requests.RequestException:
+            logger.exception("Failed to fetch recent plays from Grist")
             return {}
 
-    def _get_most_recent_play_date(self) -> Optional[date]:
+    def _get_most_recent_play_date(self) -> date | None:
         try:
             plays = self.grist_client.get_plays(
                 sort_by="-Date",
@@ -58,15 +59,15 @@ class SyncProcess:
             logger.debug(f"Most recent play date: {result}")
             return result
 
-        except Exception as e:
-            logger.error(f"Failed to fetch most recent play date from Grist: {e}")
+        except requests.RequestException:
+            logger.exception("Failed to fetch most recent play date from Grist")
             return None
 
     def _fetch_new_plays_until_overlap(
         self,
-        existing_play_ids: Set[GeekdoPlayId],
-        mindate: Optional[date] = None,
-    ) -> List[GeekdoPlay]:
+        existing_play_ids: set[GeekdoPlayId],
+        mindate: date | None = None,
+    ) -> list[GeekdoPlay]:
         """
         Fetch new plays from API using iterate-until-overlap strategy.
 
@@ -80,7 +81,7 @@ class SyncProcess:
         Returns:
             List of new APIPlay objects that don't exist in Grist
         """
-        new_plays: List[GeekdoPlay] = []
+        new_plays: list[GeekdoPlay] = []
         page = 1
         found_overlap = False
 
@@ -129,8 +130,8 @@ class SyncProcess:
         logger.info(f"Collected {len(new_plays)} new plays total")
         return new_plays
 
-    def _prepare_items(self, plays: List[GeekdoPlay]) -> Dict[GeekdoItemId, GristItemUpsert]:
-        api_items: Dict[GeekdoItemId, GeekdoItem] = extract_unique_items(plays)
+    def _prepare_items(self, plays: list[GeekdoPlay]) -> dict[GeekdoItemId, GristItemUpsert]:
+        api_items: dict[GeekdoItemId, GeekdoItem] = extract_unique_items(plays)
 
         items_dict = {
             objectid: GristItemUpsert(
@@ -145,7 +146,7 @@ class SyncProcess:
         logger.debug(f"Prepared {len(items_dict)} unique items")
         return items_dict
 
-    def _prepare_players(self, plays: List[GeekdoPlay]) -> Dict[str, GristPlayerUpsert]:
+    def _prepare_players(self, plays: list[GeekdoPlay]) -> dict[str, GristPlayerUpsert]:
         """
         Returns:
             Dictionary mapping player name to GristPlayerUpsert.
@@ -160,7 +161,7 @@ class SyncProcess:
         logger.debug(f"Prepared {len(players_dict)} unique players")
         return players_dict
 
-    def _prepare_locations(self, plays: List[GeekdoPlay]) -> Dict[str, GristLocationUpsert]:
+    def _prepare_locations(self, plays: list[GeekdoPlay]) -> dict[str, GristLocationUpsert]:
         unique_locations = extract_unique_locations(plays)
         locations_dict = {name: GristLocationUpsert(Name=name) for name in unique_locations}
 
@@ -168,9 +169,9 @@ class SyncProcess:
         return locations_dict
 
     def _prepare_plays(
-        self, plays: List[GeekdoPlay], items_mapping: Dict[GeekdoItemId, GristId], locations_mapping: Dict[str, GristId]
-    ) -> List[GristPlayUpsert]:
-        plays_list: List[GristPlayUpsert] = []
+        self, plays: list[GeekdoPlay], items_mapping: dict[GeekdoItemId, GristId], locations_mapping: dict[str, GristId]
+    ) -> list[GristPlayUpsert]:
+        plays_list: list[GristPlayUpsert] = []
 
         for play in plays:
             item_id = play.item.objectid
@@ -194,11 +195,11 @@ class SyncProcess:
 
     def _prepare_player_plays(
         self,
-        plays: List[GeekdoPlay],
-        plays_mapping: Dict[GeekdoPlayId, GristId],
-        players_mapping: Dict[str, GristId],
-    ) -> List[GristPlayerPlayUpsert]:
-        player_plays_list: List[GristPlayerPlayUpsert] = []
+        plays: list[GeekdoPlay],
+        plays_mapping: dict[GeekdoPlayId, GristId],
+        players_mapping: dict[str, GristId],
+    ) -> list[GristPlayerPlayUpsert]:
+        player_plays_list: list[GristPlayerPlayUpsert] = []
 
         for play in plays:
             play_id = play.id
@@ -230,7 +231,7 @@ class SyncProcess:
         logger.debug(f"Prepared {len(player_plays_list)} player-play relationships")
         return player_plays_list
 
-    def _sync_players(self, new_players: Dict[str, GristPlayerUpsert]) -> Dict[str, GristId]:
+    def _sync_players(self, new_players: dict[str, GristPlayerUpsert]) -> dict[str, GristId]:
         """
         Args:
             new_players: Players to upsert (by name)
@@ -248,12 +249,12 @@ class SyncProcess:
 
         players = self.grist_client.get_players(limit=None)
 
-        players_mapping: Dict[str, GristId] = {player.Name: player.id for player in players}
+        players_mapping: dict[str, GristId] = {player.Name: player.id for player in players}
 
         logger.debug(f"Players mapping contains {len(players_mapping)} entries")
         return players_mapping
 
-    def _sync_items(self, new_items: Dict[GeekdoItemId, GristItemUpsert]) -> Dict[GeekdoItemId, GristId]:
+    def _sync_items(self, new_items: dict[GeekdoItemId, GristItemUpsert]) -> dict[GeekdoItemId, GristId]:
         """
         Args:
             new_items: Items to upsert (by objectid)
@@ -271,12 +272,12 @@ class SyncProcess:
 
         items = self.grist_client.get_items(limit=None)
 
-        items_mapping: Dict[GeekdoItemId, GristId] = {GeekdoItemId(item.ItemID): item.id for item in items}
+        items_mapping: dict[GeekdoItemId, GristId] = {GeekdoItemId(item.ItemID): item.id for item in items}
 
         logger.debug(f"Items mapping contains {len(items_mapping)} entries")
         return items_mapping
 
-    def _sync_locations(self, new_locations: Dict[str, GristLocationUpsert]) -> Dict[str, GristId]:
+    def _sync_locations(self, new_locations: dict[str, GristLocationUpsert]) -> dict[str, GristId]:
         """
         Returns:
             Complete locations mapping (name → grist_row_id) after upsert
@@ -291,16 +292,16 @@ class SyncProcess:
 
         locations = self.grist_client.get_locations(limit=None)
 
-        locations_mapping: Dict[str, GristId] = {location.Name: location.id for location in locations}
+        locations_mapping: dict[str, GristId] = {location.Name: location.id for location in locations}
 
         logger.debug(f"Locations mapping contains {len(locations_mapping)} entries")
         return locations_mapping
 
     def _sync_plays(
         self,
-        plays_list: List[GristPlayUpsert],
-        existing_play_ids: Dict[GeekdoPlayId, GristId],
-    ) -> Dict[GeekdoPlayId, GristId]:
+        plays_list: list[GristPlayUpsert],
+        existing_play_ids: dict[GeekdoPlayId, GristId],
+    ) -> dict[GeekdoPlayId, GristId]:
         """
         Args:
             plays_list: List of plays with resolved item references
@@ -322,14 +323,14 @@ class SyncProcess:
 
         plays = self.grist_client.get_plays(limit=None)
 
-        plays_mapping: Dict[GeekdoPlayId, GristId] = {GeekdoPlayId(play.PlayID): play.id for play in plays}
+        plays_mapping: dict[GeekdoPlayId, GristId] = {GeekdoPlayId(play.PlayID): play.id for play in plays}
 
         logger.debug(f"Plays mapping contains {len(plays_mapping)} entries")
         return plays_mapping
 
     def _sync_player_plays(
         self,
-        player_plays_list: List[GristPlayerPlayUpsert],
+        player_plays_list: list[GristPlayerPlayUpsert],
     ) -> None:
         if not player_plays_list:
             logger.debug("No player-plays to sync")
@@ -342,14 +343,14 @@ class SyncProcess:
 
     def _validate_sync(
         self,
-        synced_play_ids: List[GeekdoPlayId],
-        synced_item_ids: List[GeekdoItemId],
-        synced_player_names: List[str],
-        synced_location_names: List[str],
-        items_mapping: Dict[GeekdoItemId, GristId],
-        players_mapping: Dict[str, GristId],
-        plays_mapping: Dict[GeekdoPlayId, GristId],
-        locations_mapping: Dict[str, GristId],
+        synced_play_ids: list[GeekdoPlayId],
+        synced_item_ids: list[GeekdoItemId],
+        synced_player_names: list[str],
+        synced_location_names: list[str],
+        items_mapping: dict[GeekdoItemId, GristId],
+        players_mapping: dict[str, GristId],
+        plays_mapping: dict[GeekdoPlayId, GristId],
+        locations_mapping: dict[str, GristId],
     ) -> bool:
         """
         Validate that the newly synced records were inserted successfully.
@@ -423,8 +424,8 @@ class SyncProcess:
 
             return validation_passed
 
-        except Exception as e:
-            logger.error(f"Validation failed with exception: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Validation failed with exception")
             return False
 
     def run_sync(self) -> bool:
@@ -518,6 +519,6 @@ class SyncProcess:
                 logger.error("Validation failed")
                 return False
 
-        except Exception as e:
-            logger.error(f"Sync failed with error: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Sync failed with error")
             return False

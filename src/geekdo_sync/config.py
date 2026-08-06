@@ -1,6 +1,6 @@
 import logging
 from enum import Enum, IntEnum
-from typing import Any, Dict
+from typing import Any
 
 from pydantic import HttpUrl, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -51,7 +51,7 @@ class GristConfig(BaseSettings):
     base_url: HttpUrl
     doc_id: NonEmptyStr
 
-    def get_pygrister_config(self) -> Dict[str, str]:
+    def get_pygrister_config(self) -> dict[str, str]:
         # Yeah, I'll just hardcode the pygrister settings for self-hosted version
         return {
             "GRIST_SELF_MANAGED": "Y",

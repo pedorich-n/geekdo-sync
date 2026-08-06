@@ -30,7 +30,7 @@ def configure_logging(logging_config: LoggingConfig) -> None:
 def main() -> int:
     try:
         config = Config()  # type: ignore[call-arg]
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # Can't use logger yet as config failed
         print(f"Error loading configuration: {e}", file=sys.stderr)
         sys.exit(1)
@@ -49,32 +49,31 @@ def main() -> int:
 
     try:
         logger.info("Initializing clients...")
-        with BGGClient(api_key=config.geekdo.token) as bgg_client:
-            with GristClient(config=config.grist) as grist_client:
-                sync_process = SyncProcess(
-                    bgg_client=bgg_client,
-                    bgg_username=config.geekdo.username,
-                    grist_client=grist_client,
-                )
+        with BGGClient(api_key=config.geekdo.token) as bgg_client, GristClient(config=config.grist) as grist_client:
+            sync_process = SyncProcess(
+                bgg_client=bgg_client,
+                bgg_username=config.geekdo.username,
+                grist_client=grist_client,
+            )
 
-                start_time = time.monotonic()
-                success = sync_process.run_sync()
-                elapsed = time.monotonic() - start_time
+            start_time = time.monotonic()
+            success = sync_process.run_sync()
+            elapsed = time.monotonic() - start_time
 
-                if success:
-                    logger.info("=" * 60)
-                    logger.info(f"Sync completed successfully in {elapsed:.2f} seconds")
-                    logger.info("=" * 60)
-                    sys.exit(0)
-                else:
-                    logger.error("=" * 60)
-                    logger.error("Sync failed")
-                    logger.error("=" * 60)
-                    sys.exit(1)
+            if success:
+                logger.info("=" * 60)
+                logger.info(f"Sync completed successfully in {elapsed:.2f} seconds")
+                logger.info("=" * 60)
+                sys.exit(0)
+            else:
+                logger.error("=" * 60)
+                logger.error("Sync failed")
+                logger.error("=" * 60)
+                sys.exit(1)
 
     except KeyboardInterrupt:
         logger.warning("Sync interrupted by user")
         sys.exit(130)
-    except Exception as e:
-        logger.error(f"Fatal error during sync: {e}", exc_info=True)
+    except Exception:
+        logger.exception("Fatal error during sync")
         sys.exit(1)

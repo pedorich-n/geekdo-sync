@@ -1,14 +1,12 @@
-from typing import Dict, List, Set
-
 from .models import GeekdoItem, GeekdoItemId, GeekdoPlay, GeekdoPlayer
 
 
-def extract_unique_items(plays: List[GeekdoPlay]) -> Dict[GeekdoItemId, GeekdoItem]:
+def extract_unique_items(plays: list[GeekdoPlay]) -> dict[GeekdoItemId, GeekdoItem]:
     """
     Returns:
         Dictionary mapping item objectid to APIItem
     """
-    items: Dict[GeekdoItemId, GeekdoItem] = {}
+    items: dict[GeekdoItemId, GeekdoItem] = {}
     for play in plays:
         item_id = play.item.objectid
         if item_id not in items:
@@ -16,7 +14,7 @@ def extract_unique_items(plays: List[GeekdoPlay]) -> Dict[GeekdoItemId, GeekdoIt
     return items
 
 
-def extract_unique_players(plays: List[GeekdoPlay]) -> Dict[str, GeekdoPlayer]:
+def extract_unique_players(plays: list[GeekdoPlay]) -> dict[str, GeekdoPlayer]:
     """
     Returns:
         Dictionary mapping player name to APIPlayer.
@@ -31,7 +29,7 @@ def extract_unique_players(plays: List[GeekdoPlay]) -> Dict[str, GeekdoPlayer]:
     return players
 
 
-def extract_unique_locations(plays: List[GeekdoPlay]) -> Set[str]:
+def extract_unique_locations(plays: list[GeekdoPlay]) -> set[str]:
     """
     Returns:
         Deduplicated set of non-None location strings across all plays.
